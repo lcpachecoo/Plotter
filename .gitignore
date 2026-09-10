@@ -1,0 +1,32 @@
+# Documentos da disciplina que não fazem parte da entrega do código
+proposta.pdf
+Regras do Projeto da Disciplina.md
+ETAPA 02.md
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugin-dependencies
+.pub-cache/
+.pub/
+build/
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Android
+android/.gradle/
+android/local.properties
+android/**/gradle-wrapper.jar
+android/key.properties
+*.jks
+
+# iOS
+ios/Flutter/ephemeral/
+ios/Pods/
+ios/.symlinks/
+
+# Símbolos e cobertura de testes
+coverage/
+# Widget Preview related
+.widget_preview/
