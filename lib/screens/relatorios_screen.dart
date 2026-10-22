@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../data/plotter_crud.dart';
 import '../models/talhao.dart';
 import '../routes/app_routes.dart';
 import '../theme/app_theme.dart';
@@ -13,13 +13,15 @@ import 'home_shell.dart';
 /// ao gerente, com médias e indicadores gerais de manejo.
 ///
 /// Cada linha de "status por talhão" é um atalho para o detalhe do talhão,
-/// mantendo a navegação conectada entre as seções.
+/// mantendo a navegação conectada entre as seções. Os indicadores são
+/// calculados a partir dos dados gravados no banco local.
 class RelatoriosScreen extends StatelessWidget {
   const RelatoriosScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final talhoes = MockData.talhoes;
+    final crud = PlotterCrudScope.of(context);
+    final talhoes = crud.talhoes;
     final areaTotal = talhoes.fold<double>(0, (sum, t) => sum + t.areaHa);
     final emDia = talhoes.where((t) => t.status == TalhaoStatus.feito).length;
     final pendentes = talhoes.where((t) => t.status == TalhaoStatus.pendente).length;
@@ -88,6 +90,18 @@ class RelatoriosScreen extends StatelessWidget {
                       icon: Icons.schedule,
                       color: AppTheme.scheduledBlue,
                     ),
+                    StatTile(
+                      label: 'Aplicações registradas',
+                      value: '${crud.realizadas.length}',
+                      icon: Icons.history,
+                      color: AppTheme.darkGreen,
+                    ),
+                    StatTile(
+                      label: 'Aplicações agendadas',
+                      value: '${crud.agendadas.length}',
+                      icon: Icons.event_outlined,
+                      color: AppTheme.scheduledBlue,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 28),
@@ -134,10 +148,7 @@ class RelatoriosScreen extends StatelessWidget {
                           '${talhao.cultura} · ${talhao.areaHa.toStringAsFixed(1)} ha',
                         ),
                         trailing: StatusBadge(status: talhao.status),
-                        onTap: () => Navigator.of(context).pushNamed(
-                          AppRoutes.talhaoDetalhe,
-                          arguments: talhao,
-                        ),
+                        onTap: () => AppRoutes.abrirTalhao(context, talhao),
                       ),
                     ),
                   ),

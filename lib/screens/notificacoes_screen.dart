@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../data/plotter_crud.dart';
 import '../models/talhao.dart';
 import '../routes/app_routes.dart';
 import '../theme/app_theme.dart';
@@ -19,27 +19,30 @@ class NotificacoesScreen extends StatefulWidget {
 }
 
 class _NotificacoesScreenState extends State<NotificacoesScreen> {
-  /// Identificadores das notificações já lidas. O estado é apenas local:
-  /// nesta etapa ainda não há persistência.
-  final Set<String> _lidas = {};
+  /// Identificadores dos talhões cujas notificações já foram lidas. O estado
+  /// vale enquanto a tela está aberta; os avisos em si são derivados dos
+  /// talhões gravados no banco.
+  final Set<int> _lidas = {};
 
-  List<Talhao> get _pendentes => MockData.talhoes
+  List<Talhao> _pendentes(PlotterCrud crud) => crud.talhoes
       .where((t) => t.status != TalhaoStatus.feito)
       .toList(growable: false);
 
   void _marcarTodasComoLidas() {
-    setState(() => _lidas.addAll(_pendentes.map((t) => t.id)));
+    final crud = PlotterCrudScope.read(context);
+    setState(() => _lidas.addAll(_pendentes(crud).map((t) => t.id!)));
     AppFeedback.sucesso(context, 'Todas as notificações foram marcadas como lidas.');
   }
 
   void _abrirTalhao(Talhao talhao) {
-    setState(() => _lidas.add(talhao.id));
-    Navigator.of(context).pushNamed(AppRoutes.talhaoDetalhe, arguments: talhao);
+    setState(() => _lidas.add(talhao.id!));
+    AppRoutes.abrirTalhao(context, talhao);
   }
 
   @override
   Widget build(BuildContext context) {
-    final notificacoes = _pendentes;
+    final crud = PlotterCrudScope.of(context);
+    final notificacoes = _pendentes(crud);
     final naoLidas = notificacoes.where((t) => !_lidas.contains(t.id)).length;
     final isWide = AppBreakpoints.isWide(context);
 
@@ -109,7 +112,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                             fontWeight: lida ? FontWeight.w500 : FontWeight.w700,
                           ),
                         ),
-                        subtitle: Text(talhao.proximaAplicacao),
+                        subtitle: Text(crud.resumoProximaAplicacao(talhao.id!)),
                         // O ponto verde marca visualmente o item não lido; o
                         // rótulo semântico transmite o mesmo estado a quem
                         // usa leitor de tela.

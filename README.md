@@ -16,21 +16,30 @@ Substitui o controle manual em papel/cadernos pelo registro digital das aplicaç
 
 Produtores agrícolas, gerentes de fazenda e operadores de campo responsáveis pelo manejo diário de lavouras.
 
-## Funcionalidades Implementadas (Etapas 2 e 3)
+## Funcionalidades Implementadas (Etapas 2, 3 e 4)
 
-Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou o fluxo de navegação completo, ergonomia das ações e acessibilidade. Os dados continuam fictícios (mock), sem persistência local nem comunicação com servidor:
+Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou o fluxo de navegação completo, ergonomia das ações e acessibilidade; na Etapa 4 os dados passaram a ser gravados em um banco SQLite no próprio aparelho:
 
 - Login de acesso, com validação por campo, estado de carregamento e mostrar/ocultar senha
 - Dashboard com painel de status (em dia / pendente), filtro por situação e lista de talhões
 - Detalhes do talhão (cultura, estágio, última e próxima aplicação) com ações conectadas
-- Cadastro/edição de talhão (formulário com aviso de alterações não salvas)
-- Lançamento de novo registro de aplicação (formulário com data validada)
+- Cadastro, edição e exclusão de talhão (formulário com aviso de alterações não salvas)
+- Lançamento, edição e exclusão de registros de aplicação (formulário com data validada; data futura = aplicação agendada)
 - Histórico de aplicações em duas abas: realizadas e agendadas
 - Relatórios/indicadores consolidados da fazenda
 - Notificações de aplicações pendentes e agendadas
 - Ajuda e acessibilidade: mapa de navegação dentro do próprio aplicativo
 - Configurações, preferências e status de sincronização
 - Navegação adaptável: barra inferior no celular, menu lateral em tablets e menu lateral estendido em telas largas
+
+### Persistência local (Etapa 4)
+
+- Banco **SQLite** (`sqflite`) com as tabelas `talhoes` e `registros`, ligadas por chave estrangeira com exclusão em cascata
+- Todas as operações (criar, recuperar, atualizar e remover) centralizadas em `lib/data/plotter_crud.dart`; as telas não executam SQL
+- Os dados são carregados antes da primeira tela e continuam disponíveis após fechar e reabrir o aplicativo
+- Na primeira execução o banco recebe uma carga de exemplo (`lib/data/mock_data.dart`), que não se repete
+- A última e a próxima aplicação de cada talhão são calculadas a partir dos registros gravados
+- Detalhes, estrutura das tabelas e roteiro de verificação em [`Docs/etapa-04.md`](Docs/etapa-04.md)
 
 ### Navegação, UX e acessibilidade (Etapa 3)
 
@@ -43,8 +52,10 @@ Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou
 
 ## Limitações Conhecidas
 
-- Não há persistência local (SQLite) nem comunicação com backend/API externa ainda; todos os dados exibidos são fictícios (mock).
-- Login, cadastro e sincronização não realizam autenticação/envio real: a validação é apenas de formulário.
+- Os dados ficam apenas no aparelho: ainda não há comunicação com backend/API externa, e a sincronização é simulada.
+- O login não realiza autenticação real: a validação é apenas de formulário.
+- As preferências de Ajustes e o estado "lida" das notificações ainda não são persistidos.
+- A situação do talhão (em dia / pendente / agendado) é escolhida manualmente, não calculada a partir dos registros.
 - As notificações não são disparadas pelo sistema operacional; a tela de notificações apresenta os avisos derivados dos dados fictícios.
 
 ## Funcionalidades Principais (planejadas)
@@ -85,7 +96,7 @@ Login
 
 As quatro seções principais ficam sempre acessíveis pela barra inferior (celular) ou pelo menu lateral (tablet e telas largas); as demais telas são empilhadas sobre elas e fechadas pela seta "Voltar" ou pelo botão voltar do aparelho.
 
-Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md`](Docs/etapa-02.md) e [`Docs/etapa-03.md`](Docs/etapa-03.md).
+Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md`](Docs/etapa-02.md), [`Docs/etapa-03.md`](Docs/etapa-03.md) e [`Docs/etapa-04.md`](Docs/etapa-04.md).
 
 ## Tecnologias
 
@@ -93,13 +104,13 @@ Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md
 |---|---|
 | Mobile | Flutter |
 | Backend | Node.js + Express + TypeScript |
-| Banco local (offline) | SQLite |
+| Banco local (offline) | SQLite (`sqflite`) — implementado na Etapa 4 |
 | Banco em nuvem | PostgreSQL (Supabase) |
 | API externa | OpenWeatherMap (previsão do tempo) |
 
 ## Instruções para Execução
 
-Pré-requisitos: [Flutter SDK](https://docs.flutter.dev/get-started/install) instalado e um emulador Android/iOS configurado (ou dispositivo físico conectado).
+Pré-requisitos: [Flutter SDK](https://docs.flutter.dev/get-started/install) instalado e um emulador Android/iOS configurado (ou dispositivo físico conectado). O banco local usa o SQLite nativo do Android/iOS.
 
 ```bash
 flutter pub get
@@ -112,10 +123,10 @@ Verificações automatizadas:
 
 ```bash
 flutter analyze   # análise estática
-flutter test      # testes de fluxo de navegação e de acessibilidade
+flutter test      # navegação, acessibilidade e persistência (CRUD e reabertura do banco)
 ```
 
-O roteiro de teste manual da navegação está em [`Docs/etapa-03.md`](Docs/etapa-03.md#8-instruções-para-execução-e-teste-da-navegação).
+O roteiro de teste manual da navegação está em [`Docs/etapa-03.md`](Docs/etapa-03.md#8-instruções-para-execução-e-teste-da-navegação), e o da persistência (incluindo fechar e reabrir o app) em [`Docs/etapa-04.md`](Docs/etapa-04.md#8-verificação-da-persistência-após-encerrar-e-reabrir-o-app).
 
 ## Estrutura do Projeto
 
@@ -124,7 +135,8 @@ Plotter/
 ├── Docs/
 │   ├── proposta.md        <-- Proposta técnica/comercial (Etapa 1)
 │   ├── etapa-02.md        <-- Documentação da Etapa 2
-│   └── etapa-03.md        <-- Documentação da Etapa 3
+│   ├── etapa-03.md        <-- Documentação da Etapa 3
+│   └── etapa-04.md        <-- Documentação da Etapa 4
 ├── README.md               <-- Este arquivo
 ├── android/, ios/           <-- Projetos nativos gerados pelo Flutter
 ├── lib/                     <-- Código-fonte do app
@@ -133,12 +145,12 @@ Plotter/
 │   ├── routes/                <-- Rotas nomeadas e mapa de navegação
 │   ├── utils/                  <-- Feedback visual, anúncios e diálogos
 │   ├── models/                  <-- Modelos de dados (Talhao, Registro)
-│   ├── data/                     <-- Dados fictícios (mock) usados nesta etapa
+│   ├── data/                     <-- Banco SQLite, operações de CRUD e carga inicial
 │   ├── widgets/                   <-- Componentes visuais reaproveitáveis
 │   └── screens/                    <-- As telas da aplicação
-└── test/                    <-- Testes automatizados (widget tests)
+└── test/                    <-- Testes automatizados (widgets e persistência)
 ```
 
 ## Documentação
 
-Consulte a proposta técnica/comercial completa em [`Docs/proposta.md`](Docs/proposta.md), a documentação da Etapa 2 em [`Docs/etapa-02.md`](Docs/etapa-02.md) e a da Etapa 3 (navegação, UX e acessibilidade) em [`Docs/etapa-03.md`](Docs/etapa-03.md).
+Consulte a proposta técnica/comercial completa em [`Docs/proposta.md`](Docs/proposta.md), a documentação da Etapa 2 em [`Docs/etapa-02.md`](Docs/etapa-02.md), a da Etapa 3 (navegação, UX e acessibilidade) em [`Docs/etapa-03.md`](Docs/etapa-03.md) e a da Etapa 4 (persistência local) em [`Docs/etapa-04.md`](Docs/etapa-04.md).

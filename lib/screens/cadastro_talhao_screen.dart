@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../data/plotter_crud.dart';
 import '../models/talhao.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/primary_button.dart';
 
-/// Tela para criar ou editar um talhão (cultura, área, pivô associado).
+/// Tela para criar ou editar um talhão (cultura, área, estágio, pivô).
 /// Quando [talhao] é informado, o formulário é pré-preenchido para edição.
 ///
-/// Ao concluir, a tela devolve `true` para quem a abriu (`Navigator.pop`),
+/// Ao salvar, o talhão é gravado no banco local (inserção no cadastro,
+/// atualização na edição). Em seguida a tela devolve `true` para quem a
+/// abriu (`Navigator.pop`),
 /// que então exibe a confirmação — assim a mensagem aparece já na tela de
 /// destino, e não em uma tela que está sendo fechada.
 class CadastroTalhaoScreen extends StatefulWidget {
@@ -29,10 +32,14 @@ class _CadastroTalhaoScreenState extends State<CadastroTalhaoScreen> {
   late final _areaController = TextEditingController(
     text: widget.talhao != null ? widget.talhao!.areaHa.toString() : '',
   );
-  late final _pivoController = TextEditingController();
+  late final _estagioController =
+      TextEditingController(text: widget.talhao?.estagio ?? '');
+  late final _pivoController =
+      TextEditingController(text: widget.talhao?.pivo ?? '');
 
   final _culturaFocus = FocusNode();
   final _areaFocus = FocusNode();
+  final _estagioFocus = FocusNode();
   final _pivoFocus = FocusNode();
 
   TalhaoStatus _status = TalhaoStatus.pendente;
@@ -50,9 +57,11 @@ class _CadastroTalhaoScreenState extends State<CadastroTalhaoScreen> {
     _nomeController.dispose();
     _culturaController.dispose();
     _areaController.dispose();
+    _estagioController.dispose();
     _pivoController.dispose();
     _culturaFocus.dispose();
     _areaFocus.dispose();
+    _estagioFocus.dispose();
     _pivoFocus.dispose();
     super.dispose();
   }
@@ -67,8 +76,33 @@ class _CadastroTalhaoScreenState extends State<CadastroTalhaoScreen> {
       return;
     }
 
+    final crud = PlotterCrudScope.read(context);
+    final talhao = Talhao(
+      id: widget.talhao?.id,
+      nome: _nomeController.text.trim(),
+      cultura: _culturaController.text.trim(),
+      areaHa: double.parse(_areaController.text.trim().replaceAll(',', '.')),
+      estagio: _estagioController.text.trim(),
+      pivo: _pivoController.text.trim(),
+      status: _status,
+    );
+
     setState(() => _salvando = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    try {
+      if (widget.talhao == null) {
+        await crud.inserirTalhao(talhao);
+      } else {
+        await crud.atualizarTalhao(talhao);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _salvando = false);
+      AppFeedback.erro(
+        context,
+        'Não foi possível salvar o talhão no aparelho. Tente novamente.',
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _salvando = false);
 
@@ -161,7 +195,7 @@ class _CadastroTalhaoScreenState extends State<CadastroTalhaoScreen> {
                         focusNode: _areaFocus,
                         obrigatorio: true,
                         onChanged: _marcarAlterado,
-                        onSubmitted: (_) => _pivoFocus.requestFocus(),
+                        onSubmitted: (_) => _estagioFocus.requestFocus(),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Informe a área do talhão';
@@ -172,6 +206,17 @@ class _CadastroTalhaoScreenState extends State<CadastroTalhaoScreen> {
                           }
                           return null;
                         },
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        label: 'Estágio atual',
+                        hint: 'Ex.: Floração (R2)',
+                        ajuda: 'Opcional',
+                        icon: Icons.timeline,
+                        controller: _estagioController,
+                        focusNode: _estagioFocus,
+                        onChanged: _marcarAlterado,
+                        onSubmitted: (_) => _pivoFocus.requestFocus(),
                       ),
                       const SizedBox(height: 16),
                       AppTextField(
@@ -188,7 +233,7 @@ class _CadastroTalhaoScreenState extends State<CadastroTalhaoScreen> {
                       Semantics(
                         header: true,
                         child: Text(
-                          'Situação inicial',
+                          isEdicao ? 'Situação' : 'Situação inicial',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ),

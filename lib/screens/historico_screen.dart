@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../data/plotter_crud.dart';
 import '../models/registro.dart';
-import '../models/talhao.dart';
 import '../routes/app_routes.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
+import '../widgets/registro_tile.dart';
 
 /// Tela de Histórico e Agenda.
 ///
@@ -13,6 +13,10 @@ import '../utils/app_feedback.dart';
 /// exigir uma nova tela: o que já foi aplicado e o que está agendado. A aba
 /// ativa é indicada por cor, peso da fonte e sublinhado, e a troca é
 /// anunciada para leitores de tela.
+///
+/// As duas abas mostram os registros gravados no banco: data até hoje em
+/// "Realizadas" e data futura em "Agendadas". Cada item pode ser editado ou
+/// excluído pelo próprio item (`RegistroTile`).
 class HistoricoScreen extends StatefulWidget {
   const HistoricoScreen({super.key});
 
@@ -43,30 +47,6 @@ class _HistoricoScreenState extends State<HistoricoScreen>
     super.dispose();
   }
 
-  IconData _iconFor(TipoInsumo tipo) {
-    switch (tipo) {
-      case TipoInsumo.defensivo:
-        return Icons.bug_report_outlined;
-      case TipoInsumo.fertilizante:
-        return Icons.grass_outlined;
-      case TipoInsumo.outro:
-        return Icons.science_outlined;
-    }
-  }
-
-  /// Abre o talhão relacionado ao registro, permitindo ir do histórico ao
-  /// detalhe sem passar pelo Dashboard.
-  void _abrirTalhaoPorNome(String nome) {
-    final encontrados =
-        MockData.talhoes.where((t) => t.nome == nome).toList(growable: false);
-    if (encontrados.isEmpty) {
-      AppFeedback.informacao(context, 'Talhão "$nome" não está mais cadastrado.');
-      return;
-    }
-    Navigator.of(context)
-        .pushNamed(AppRoutes.talhaoDetalhe, arguments: encontrados.first);
-  }
-
   Future<void> _novoRegistro() async {
     final salvou =
         await Navigator.of(context).pushNamed<Object?>(AppRoutes.novoRegistro);
@@ -77,9 +57,7 @@ class _HistoricoScreenState extends State<HistoricoScreen>
   @override
   Widget build(BuildContext context) {
     final isWide = AppBreakpoints.isWide(context);
-    final agendadas = MockData.talhoes
-        .where((t) => t.status != TalhaoStatus.feito)
-        .toList(growable: false);
+    final crud = PlotterCrudScope.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -121,15 +99,18 @@ class _HistoricoScreenState extends State<HistoricoScreen>
           child: TabBarView(
             controller: _tabController,
             children: [
-              _ListaRealizadas(
-                registros: MockData.registros,
-                iconeDoTipo: _iconFor,
-                onAbrirTalhao: _abrirTalhaoPorNome,
+              _ListaRegistros(
+                registros: crud.realizadas,
+                nomeDoTalhao: (id) => crud.buscarTalhao(id)?.nome ?? '',
+                iconeVazio: Icons.inbox_outlined,
+                mensagemVazia: 'Nenhuma aplicação registrada até agora.',
               ),
-              _ListaAgendadas(
-                talhoes: agendadas,
-                onAbrirTalhao: (talhao) => Navigator.of(context)
-                    .pushNamed(AppRoutes.talhaoDetalhe, arguments: talhao),
+              _ListaRegistros(
+                registros: crud.agendadas,
+                nomeDoTalhao: (id) => crud.buscarTalhao(id)?.nome ?? '',
+                iconeVazio: Icons.event_available_outlined,
+                mensagemVazia: 'Nenhuma aplicação agendada. Para agendar, '
+                    'lance um registro com data futura.',
               ),
             ],
           ),
@@ -139,24 +120,23 @@ class _HistoricoScreenState extends State<HistoricoScreen>
   }
 }
 
-class _ListaRealizadas extends StatelessWidget {
+class _ListaRegistros extends StatelessWidget {
   final List<Registro> registros;
-  final IconData Function(TipoInsumo) iconeDoTipo;
-  final void Function(String nomeTalhao) onAbrirTalhao;
+  final String Function(int talhaoId) nomeDoTalhao;
+  final IconData iconeVazio;
+  final String mensagemVazia;
 
-  const _ListaRealizadas({
+  const _ListaRegistros({
     required this.registros,
-    required this.iconeDoTipo,
-    required this.onAbrirTalhao,
+    required this.nomeDoTalhao,
+    required this.iconeVazio,
+    required this.mensagemVazia,
   });
 
   @override
   Widget build(BuildContext context) {
     if (registros.isEmpty) {
-      return const _ListaVazia(
-        icone: Icons.inbox_outlined,
-        mensagem: 'Nenhuma aplicação registrada até agora.',
-      );
+      return _ListaVazia(icone: iconeVazio, mensagem: mensagemVazia);
     }
 
     return ListView.separated(
@@ -165,78 +145,9 @@ class _ListaRealizadas extends StatelessWidget {
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final registro = registros[index];
-        return Card(
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            leading: CircleAvatar(
-              backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.12),
-              foregroundColor: AppTheme.primaryGreen,
-              child: Icon(iconeDoTipo(registro.tipo)),
-            ),
-            title: Text(
-              registro.insumo,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: Text(
-              '${registro.talhaoNome}\n'
-              '${registro.tipo.label} · ${registro.quantidade} · ${registro.responsavel}',
-            ),
-            isThreeLine: true,
-            trailing: Text(
-              registro.data,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            onTap: () => onAbrirTalhao(registro.talhaoNome),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ListaAgendadas extends StatelessWidget {
-  final List<Talhao> talhoes;
-  final void Function(Talhao talhao) onAbrirTalhao;
-
-  const _ListaAgendadas({required this.talhoes, required this.onAbrirTalhao});
-
-  @override
-  Widget build(BuildContext context) {
-    if (talhoes.isEmpty) {
-      return const _ListaVazia(
-        icone: Icons.event_available_outlined,
-        mensagem: 'Nenhuma aplicação agendada. Tudo em dia!',
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-      itemCount: talhoes.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final talhao = talhoes[index];
-        final pendente = talhao.status == TalhaoStatus.pendente;
-        final cor = pendente ? AppTheme.pendingOrange : AppTheme.scheduledBlue;
-
-        return Card(
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            leading: CircleAvatar(
-              backgroundColor: cor.withValues(alpha: 0.12),
-              foregroundColor: cor,
-              child: Icon(pendente ? Icons.warning_amber_rounded : Icons.schedule),
-            ),
-            title: Text(
-              talhao.proximaAplicacao,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: Text('${talhao.nome}\nSituação: ${talhao.status.label}'),
-            isThreeLine: true,
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => onAbrirTalhao(talhao),
-          ),
+        return RegistroTile(
+          registro: registro,
+          talhaoNome: nomeDoTalhao(registro.talhaoId),
         );
       },
     );

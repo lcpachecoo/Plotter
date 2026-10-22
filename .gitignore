@@ -1,11 +1,14 @@
 # Documentos da disciplina que não fazem parte da entrega do código
 proposta.pdf
 Regras do Projeto da Disciplina.md
+ETAPA 01.md
 ETAPA 02.md
 ETAPA-03.md
+ETAPA 04.md
+
 # Flutter/Dart
 .dart_tool/
-.flutter-plugin-dependencies
+.flutter-plugins-dependencies
 .pub-cache/
 .pub/
 build/

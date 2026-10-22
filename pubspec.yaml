@@ -41,6 +41,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Persistência local (Etapa 4): banco SQLite no próprio aparelho, e
+  # `path` para montar o caminho do arquivo do banco em cada plataforma.
+  sqflite: ^2.4.5
+  path: ^1.9.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -51,6 +56,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+  # Executa o SQLite nos testes automatizados (`flutter test`), que rodam
+  # fora de um aparelho Android/iOS.
+  sqflite_common_ffi: ^2.4.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

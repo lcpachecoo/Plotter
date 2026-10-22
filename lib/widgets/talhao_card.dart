@@ -5,7 +5,8 @@ import '../theme/app_theme.dart';
 import 'status_badge.dart';
 
 /// Card reutilizado no Dashboard e em outras listagens para resumir um
-/// talhão. Recebe um [onTap] para permitir navegação até o detalhe.
+/// talhão. Recebe um [onTap] para permitir navegação até o detalhe e o
+/// resumo da [proximaAplicacao], calculado a partir dos registros gravados.
 ///
 /// O cartão inteiro é a área clicável — e não apenas um pequeno botão
 /// "abrir" —, o que torna o alvo muito maior (Lei de Fitts). Para leitores
@@ -13,15 +14,22 @@ import 'status_badge.dart';
 /// resumidas em uma frase.
 class TalhaoCard extends StatelessWidget {
   final Talhao talhao;
+  final String proximaAplicacao;
   final VoidCallback? onTap;
 
-  const TalhaoCard({super.key, required this.talhao, this.onTap});
+  const TalhaoCard({
+    super.key,
+    required this.talhao,
+    required this.proximaAplicacao,
+    this.onTap,
+  });
 
   String get _descricaoAcessivel =>
       '${talhao.nome}. Cultura ${talhao.cultura}, '
       '${talhao.areaHa.toStringAsFixed(1)} hectares. '
-      'Estágio ${talhao.estagio}. Situação: ${talhao.status.label}. '
-      'Próxima aplicação: ${talhao.proximaAplicacao}.';
+      '${talhao.estagio.isEmpty ? '' : 'Estágio ${talhao.estagio}. '}'
+      'Situação: ${talhao.status.label}. '
+      'Próxima aplicação: $proximaAplicacao.';
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +79,7 @@ class TalhaoCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  talhao.estagio,
+                  talhao.estagio.isEmpty ? 'Estágio não informado' : talhao.estagio,
                   style: theme.textTheme.bodySmall,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -84,7 +92,7 @@ class TalhaoCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Próxima: ${talhao.proximaAplicacao}',
+                        'Próxima: $proximaAplicacao',
                         style: theme.textTheme.bodySmall,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

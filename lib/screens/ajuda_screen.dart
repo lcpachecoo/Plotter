@@ -59,6 +59,16 @@ class AjudaScreen extends StatelessWidget {
                     'O botão verde flutuante, no canto inferior direito, cria um novo '
                     'talhão no Dashboard e um novo registro no Histórico.',
               ),
+              SizedBox(height: 12),
+              _ItemAjuda(
+                icone: Icons.edit_note,
+                titulo: 'Editar e excluir',
+                texto:
+                    'Toque em um registro para editá-lo, ou use o menu "Opções do '
+                    'registro" para excluí-lo. Para excluir um talhão, use o botão '
+                    '"Excluir talhão" no fim da tela de detalhes. Toda exclusão pede '
+                    'confirmação. Os dados ficam salvos no aparelho, mesmo sem internet.',
+              ),
               SizedBox(height: 28),
               SectionHeader(title: 'Recursos de acessibilidade'),
               SizedBox(height: 12),

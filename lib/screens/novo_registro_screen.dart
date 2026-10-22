@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/plotter_crud.dart';
 import '../models/registro.dart';
 import '../models/talhao.dart';
 import '../theme/app_theme.dart';
@@ -7,13 +8,21 @@ import '../utils/app_feedback.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/primary_button.dart';
 
-/// Formulário para lançar uma nova aplicação (defensivo, fertilizante etc.)
-/// em um talhão. Nesta etapa não há persistência: ao salvar, a tela devolve
-/// `true` para a tela anterior, que exibe a confirmação.
+/// Formulário para lançar (ou editar) uma aplicação de insumo em um talhão.
+///
+/// - Com [talhao], o registro já nasce vinculado a ele (aberto pelo detalhe
+///   do talhão).
+/// - Com [registro], o formulário é pré-preenchido e salvar atualiza o
+///   registro existente.
+/// - Sem nenhum dos dois (aberto pelo Histórico), o usuário escolhe o talhão.
+///
+/// Ao salvar, o registro é gravado no banco local e a tela devolve `true`
+/// para a tela anterior, que exibe a confirmação.
 class NovoRegistroScreen extends StatefulWidget {
   final Talhao? talhao;
+  final Registro? registro;
 
-  const NovoRegistroScreen({super.key, this.talhao});
+  const NovoRegistroScreen({super.key, this.talhao, this.registro});
 
   @override
   State<NovoRegistroScreen> createState() => _NovoRegistroScreenState();
@@ -21,24 +30,35 @@ class NovoRegistroScreen extends StatefulWidget {
 
 class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _insumoController = TextEditingController();
-  final _quantidadeController = TextEditingController();
-  final _observacoesController = TextEditingController();
+  late final _insumoController =
+      TextEditingController(text: widget.registro?.insumo ?? '');
+  late final _quantidadeController =
+      TextEditingController(text: widget.registro?.quantidade ?? '');
+  late final _responsavelController =
+      TextEditingController(text: widget.registro?.responsavel ?? '');
+  late final _observacoesController =
+      TextEditingController(text: widget.registro?.observacoes ?? '');
 
   final _quantidadeFocus = FocusNode();
+  final _responsavelFocus = FocusNode();
   final _observacoesFocus = FocusNode();
 
-  TipoInsumo _tipo = TipoInsumo.defensivo;
-  DateTime? _data;
+  late TipoInsumo _tipo = widget.registro?.tipo ?? TipoInsumo.defensivo;
+  late DateTime? _data = widget.registro?.data;
+  late int? _talhaoId = widget.talhao?.id ?? widget.registro?.talhaoId;
   bool _salvando = false;
   bool _alterado = false;
+
+  bool get _isEdicao => widget.registro != null;
 
   @override
   void dispose() {
     _insumoController.dispose();
     _quantidadeController.dispose();
+    _responsavelController.dispose();
     _observacoesController.dispose();
     _quantidadeFocus.dispose();
+    _responsavelFocus.dispose();
     _observacoesFocus.dispose();
     super.dispose();
   }
@@ -53,8 +73,34 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
       return;
     }
 
+    final crud = PlotterCrudScope.read(context);
+    final registro = Registro(
+      id: widget.registro?.id,
+      talhaoId: _talhaoId!,
+      insumo: _insumoController.text.trim(),
+      tipo: _tipo,
+      data: _data!,
+      quantidade: _quantidadeController.text.trim(),
+      responsavel: _responsavelController.text.trim(),
+      observacoes: _observacoesController.text.trim(),
+    );
+
     setState(() => _salvando = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    try {
+      if (_isEdicao) {
+        await crud.atualizarRegistro(registro);
+      } else {
+        await crud.inserirRegistro(registro);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _salvando = false);
+      AppFeedback.erro(
+        context,
+        'Não foi possível salvar o registro no aparelho. Tente novamente.',
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _salvando = false);
 
@@ -66,8 +112,10 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
 
     final descartar = await AppFeedback.confirmar(
       context,
-      titulo: 'Descartar registro?',
-      mensagem: 'A aplicação que você começou a lançar não será salva.',
+      titulo: _isEdicao ? 'Descartar alterações?' : 'Descartar registro?',
+      mensagem: _isEdicao
+          ? 'As alterações feitas neste registro não serão salvas.'
+          : 'A aplicação que você começou a lançar não será salva.',
       confirmarLabel: 'Descartar',
       cancelarLabel: 'Continuar editando',
       destrutivo: true,
@@ -80,12 +128,15 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
   @override
   Widget build(BuildContext context) {
     final isWide = AppBreakpoints.isWide(context);
+    final talhoes = PlotterCrudScope.of(context).talhoes;
 
     return PopScope(
       canPop: !_alterado && !_salvando,
       onPopInvokedWithResult: _aoTentarVoltar,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Novo Registro')),
+        appBar: AppBar(
+          title: Text(_isEdicao ? 'Editar Registro' : 'Novo Registro'),
+        ),
         body: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -111,7 +162,45 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
                               ),
                             ),
                           ),
+                        )
+                      else ...[
+                        // Aberto pelo Histórico (ou em uma edição), o
+                        // registro precisa de um talhão escolhido aqui.
+                        DropdownButtonFormField<int>(
+                          initialValue: talhoes.any((t) => t.id == _talhaoId)
+                              ? _talhaoId
+                              : null,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Talhão *',
+                            prefixIcon: Icon(Icons.crop_square),
+                          ),
+                          itemHeight: 56,
+                          items: talhoes
+                              .map((t) => DropdownMenuItem(
+                                    value: t.id,
+                                    child: Text(
+                                      t.nome,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ))
+                              .toList(),
+                          validator: (v) => v == null
+                              ? (talhoes.isEmpty
+                                  ? 'Cadastre um talhão antes de lançar registros'
+                                  : 'Escolha o talhão da aplicação')
+                              : null,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _talhaoId = value;
+                              _alterado = true;
+                            });
+                          },
                         ),
+                        const SizedBox(height: 16),
+                      ],
                       DropdownButtonFormField<TipoInsumo>(
                         initialValue: _tipo,
                         decoration: const InputDecoration(
@@ -145,7 +234,7 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
                         icon: Icons.science_outlined,
                         controller: _insumoController,
                         obrigatorio: true,
-                        autofocus: true,
+                        autofocus: !_isEdicao,
                         onChanged: _marcarAlterado,
                         onSubmitted: (_) => _quantidadeFocus.requestFocus(),
                         validator: (v) => (v == null || v.trim().isEmpty)
@@ -162,7 +251,7 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
                         focusNode: _quantidadeFocus,
                         obrigatorio: true,
                         onChanged: _marcarAlterado,
-                        onSubmitted: (_) => _observacoesFocus.requestFocus(),
+                        onSubmitted: (_) => _responsavelFocus.requestFocus(),
                         validator: (v) => (v == null || v.trim().isEmpty)
                             ? 'Informe a quantidade aplicada'
                             : null,
@@ -174,6 +263,17 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
                           _data = novaData;
                           _alterado = true;
                         }),
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        label: 'Responsável',
+                        hint: 'Ex.: João Operador',
+                        ajuda: 'Opcional',
+                        icon: Icons.person_outline,
+                        controller: _responsavelController,
+                        focusNode: _responsavelFocus,
+                        onChanged: _marcarAlterado,
+                        onSubmitted: (_) => _observacoesFocus.requestFocus(),
                       ),
                       const SizedBox(height: 16),
                       AppTextField(
@@ -189,7 +289,7 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
                       ),
                       const SizedBox(height: 28),
                       PrimaryButton(
-                        label: 'Salvar registro',
+                        label: _isEdicao ? 'Salvar alterações' : 'Salvar registro',
                         icon: Icons.save_outlined,
                         loading: _salvando,
                         onPressed: _salvar,
@@ -218,17 +318,14 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
 /// Campo de data construído sobre `FormField`, para que participe da
 /// validação do formulário como qualquer outro campo — inclusive exibindo
 /// mensagem de erro e sendo anunciado por leitores de tela.
+///
+/// Datas futuras são permitidas: um registro com data futura é uma
+/// aplicação agendada.
 class _CampoData extends StatelessWidget {
   final DateTime? data;
   final ValueChanged<DateTime> onChanged;
 
   const _CampoData({required this.data, required this.onChanged});
-
-  static String _formatar(DateTime data) {
-    final dia = data.day.toString().padLeft(2, '0');
-    final mes = data.month.toString().padLeft(2, '0');
-    return '$dia/$mes/${data.year}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +334,8 @@ class _CampoData extends StatelessWidget {
       validator: (_) => data == null ? 'Escolha a data da aplicação' : null,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       builder: (campo) {
-        final texto = data == null ? 'Toque para escolher' : _formatar(data!);
+        final texto = data == null ? 'Toque para escolher' : formatarData(data!);
+        final hoje = DateTime.now();
 
         return Semantics(
           button: true,
@@ -246,11 +344,18 @@ class _CampoData extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () async {
+              // Ao editar um registro antigo, o intervalo se estende até a
+              // data dele (o seletor exige que a data inicial caiba nele).
+              var inicio = DateTime(hoje.year - 1);
+              var fim = DateTime(hoje.year + 1, 12, 31);
+              if (data != null && data!.isBefore(inicio)) inicio = data!;
+              if (data != null && data!.isAfter(fim)) fim = data!;
+
               final escolhida = await showDatePicker(
                 context: context,
-                initialDate: data ?? DateTime.now(),
-                firstDate: DateTime(DateTime.now().year - 1),
-                lastDate: DateTime(DateTime.now().year + 1),
+                initialDate: data ?? hoje,
+                firstDate: inicio,
+                lastDate: fim,
                 helpText: 'Data da aplicação',
                 cancelText: 'Cancelar',
                 confirmText: 'Confirmar',
@@ -262,6 +367,7 @@ class _CampoData extends StatelessWidget {
             child: InputDecorator(
               decoration: InputDecoration(
                 labelText: 'Data da aplicação *',
+                helperText: 'Datas futuras ficam na aba "Agendadas"',
                 prefixIcon: const Icon(Icons.calendar_today_outlined),
                 errorText: campo.errorText,
               ),

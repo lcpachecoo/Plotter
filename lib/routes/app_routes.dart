@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/registro.dart';
 import '../models/talhao.dart';
 import '../screens/ajuda_screen.dart';
 import '../screens/cadastro_talhao_screen.dart';
@@ -8,6 +9,7 @@ import '../screens/login_screen.dart';
 import '../screens/notificacoes_screen.dart';
 import '../screens/novo_registro_screen.dart';
 import '../screens/talhao_detail_screen.dart';
+import '../utils/app_feedback.dart';
 
 /// Mapa central de rotas nomeadas da aplicação.
 ///
@@ -23,6 +25,7 @@ class AppRoutes {
   static const String talhaoDetalhe = '/talhao/detalhe';
   static const String talhaoFormulario = '/talhao/formulario';
   static const String novoRegistro = '/registro/novo';
+  static const String editarRegistro = '/registro/editar';
   static const String notificacoes = '/notificacoes';
   static const String ajuda = '/ajuda';
 
@@ -34,6 +37,7 @@ class AppRoutes {
     talhaoDetalhe: 'Detalhes do talhão',
     talhaoFormulario: 'Cadastro de talhão',
     novoRegistro: 'Novo registro de aplicação',
+    editarRegistro: 'Editar registro de aplicação',
     notificacoes: 'Notificações',
     ajuda: 'Ajuda e acessibilidade',
   };
@@ -52,8 +56,10 @@ class AppRoutes {
         );
 
       case talhaoDetalhe:
-        if (args is! Talhao) return null;
-        return _rota(TalhaoDetailScreen(talhao: args), settings);
+        // A tela recebe apenas o id e relê o talhão do banco, para refletir
+        // edições feitas enquanto ela está aberta.
+        if (args is! Talhao || args.id == null) return null;
+        return _rota(TalhaoDetailScreen(talhaoId: args.id!), settings);
 
       case talhaoFormulario:
         // Sem argumento a tela funciona como cadastro; com um [Talhao],
@@ -64,10 +70,16 @@ class AppRoutes {
         );
 
       case novoRegistro:
+        // Com um [Talhao], o registro já nasce vinculado a ele; sem
+        // argumento, o próprio formulário pede o talhão.
         return _rota(
           NovoRegistroScreen(talhao: args is Talhao ? args : null),
           settings,
         );
+
+      case editarRegistro:
+        if (args is! Registro) return null;
+        return _rota(NovoRegistroScreen(registro: args), settings);
 
       case notificacoes:
         return _rota(const NotificacoesScreen(), settings);
@@ -77,6 +89,16 @@ class AppRoutes {
     }
 
     return null;
+  }
+
+  /// Abre o detalhe de um talhão. Se o talhão for excluído lá dentro, a
+  /// tela devolve a mensagem de confirmação, exibida aqui na tela de origem
+  /// (a tela de detalhe já foi fechada).
+  static Future<void> abrirTalhao(BuildContext context, Talhao talhao) async {
+    final resultado = await Navigator.of(context)
+        .pushNamed<Object?>(talhaoDetalhe, arguments: talhao);
+    if (!context.mounted || resultado is! String) return;
+    AppFeedback.sucesso(context, resultado);
   }
 
   /// Rota exibida quando um nome desconhecido é solicitado: em vez de uma

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../data/plotter_crud.dart';
 import '../models/talhao.dart';
 import '../routes/app_routes.dart';
 import '../theme/app_theme.dart';
@@ -26,8 +26,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Filtro ativo do painel de status. `null` significa "todos os talhões".
   TalhaoStatus? _filtro;
 
-  List<Talhao> get _talhoes {
-    final todos = MockData.talhoes;
+  List<Talhao> _filtrar(List<Talhao> todos) {
     if (_filtro == null) return todos;
     return todos.where((t) => t.status == _filtro).toList(growable: false);
   }
@@ -52,10 +51,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     AppFeedback.sucesso(context, 'Talhão cadastrado com sucesso.');
   }
 
+  /// "Puxar para atualizar": relê os talhões e registros gravados no banco.
   Future<void> _atualizar() async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
-    AppFeedback.informacao(context, 'Lista de talhões atualizada.');
+    try {
+      await PlotterCrudScope.read(context).carregar();
+      if (!mounted) return;
+      AppFeedback.informacao(context, 'Lista de talhões atualizada.');
+    } catch (_) {
+      if (!mounted) return;
+      AppFeedback.erro(context, 'Não foi possível ler os dados salvos no aparelho.');
+    }
   }
 
   Future<void> _sair() async {
@@ -74,8 +79,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final todos = MockData.talhoes;
-    final visiveis = _talhoes;
+    // `of` registra esta tela como dependente dos dados: qualquer gravação
+    // (cadastro, edição, exclusão) reconstrói o Dashboard automaticamente.
+    final crud = PlotterCrudScope.of(context);
+    final todos = crud.talhoes;
+    final visiveis = _filtrar(todos);
     final pendentes = todos.where((t) => t.status == TalhaoStatus.pendente).length;
     final emDia = todos.where((t) => t.status == TalhaoStatus.feito).length;
 
@@ -221,7 +229,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 12),
                   if (visiveis.isEmpty)
-                    _ListaVazia(onLimpar: () => _alternarFiltro(_filtro!))
+                    _ListaVazia(
+                      onLimpar: _filtro == null
+                          ? null
+                          : () => _alternarFiltro(_filtro!),
+                    )
                   else
                     GridView.builder(
                       shrinkWrap: true,
@@ -237,10 +249,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         final talhao = visiveis[index];
                         return TalhaoCard(
                           talhao: talhao,
-                          onTap: () => Navigator.of(context).pushNamed(
-                            AppRoutes.talhaoDetalhe,
-                            arguments: talhao,
-                          ),
+                          proximaAplicacao:
+                              crud.resumoProximaAplicacao(talhao.id!),
+                          onTap: () => AppRoutes.abrirTalhao(context, talhao),
                         );
                       },
                     ),
@@ -294,10 +305,12 @@ class _AvisoFiltro extends StatelessWidget {
   }
 }
 
+/// Estado vazio da lista: sem [onLimpar] significa que não há nenhum talhão
+/// gravado (e não apenas um filtro sem resultados).
 class _ListaVazia extends StatelessWidget {
-  final VoidCallback onLimpar;
+  final VoidCallback? onLimpar;
 
-  const _ListaVazia({required this.onLimpar});
+  const _ListaVazia({this.onLimpar});
 
   @override
   Widget build(BuildContext context) {
@@ -309,16 +322,20 @@ class _ListaVazia extends StatelessWidget {
             const Icon(Icons.search_off, size: 48, color: AppTheme.textSecondary),
             const SizedBox(height: 12),
             Text(
-              'Nenhum talhão nessa situação no momento.',
+              onLimpar == null
+                  ? 'Nenhum talhão cadastrado ainda. Toque em "Novo talhão" para começar.'
+                  : 'Nenhum talhão nessa situação no momento.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge,
             ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: onLimpar,
-              icon: const Icon(Icons.clear_all),
-              label: const Text('Mostrar todos os talhões'),
-            ),
+            if (onLimpar != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onLimpar,
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Mostrar todos os talhões'),
+              ),
+            ],
           ],
         ),
       ),
