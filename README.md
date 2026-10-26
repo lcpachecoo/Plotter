@@ -16,9 +16,9 @@ Substitui o controle manual em papel/cadernos pelo registro digital das aplicaç
 
 Produtores agrícolas, gerentes de fazenda e operadores de campo responsáveis pelo manejo diário de lavouras.
 
-## Funcionalidades Implementadas (Etapas 2, 3 e 4)
+## Funcionalidades Implementadas (Etapas 2 a 5)
 
-Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou o fluxo de navegação completo, ergonomia das ações e acessibilidade; na Etapa 4 os dados passaram a ser gravados em um banco SQLite no próprio aparelho:
+Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou o fluxo de navegação completo, ergonomia das ações e acessibilidade; na Etapa 4 os dados passaram a ser gravados em um banco SQLite no próprio aparelho; na Etapa 5 o app passou a usar um backend próprio (API REST + PostgreSQL):
 
 - Login de acesso, com validação por campo, estado de carregamento e mostrar/ocultar senha
 - Dashboard com painel de status (em dia / pendente), filtro por situação e lista de talhões
@@ -29,8 +29,18 @@ Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou
 - Relatórios/indicadores consolidados da fazenda
 - Notificações de aplicações pendentes e agendadas
 - Ajuda e acessibilidade: mapa de navegação dentro do próprio aplicativo
-- Configurações, preferências e status de sincronização
+- Configurações, preferências e status real da conexão com o servidor, com sincronização manual
 - Navegação adaptável: barra inferior no celular, menu lateral em tablets e menu lateral estendido em telas largas
+
+### Backend e integração (Etapa 5)
+
+- API REST em **Node.js + Express + TypeScript** (pasta `backend/`), com PostgreSQL local (Docker) ou no Supabase
+- Fluxo completo **criar → visualizar → alterar → excluir** de talhões e registros passando pelo servidor: o app só confirma a operação depois da resposta da API
+- Validação no servidor (campos obrigatórios, tipos, datas existentes, valores permitidos, talhão existente), com mensagem por campo exibida no app
+- O SQLite do aparelho virou a cópia local dos dados do servidor: sem internet, o app continua exibindo os últimos dados recebidos e avisa que está sem conexão
+- "Puxar para atualizar" no Dashboard e "Sincronizar agora" em Ajustes baixam os dados do servidor
+- Mensagens claras para servidor fora do ar, tempo esgotado, item já excluído e erro interno
+- Fluxo, endpoints, tratamento de erros, decisões técnicas e roteiro de teste em [`Docs/etapa-05.md`](Docs/etapa-05.md)
 
 ### Persistência local (Etapa 4)
 
@@ -52,8 +62,11 @@ Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou
 
 ## Limitações Conhecidas
 
-- Os dados ficam apenas no aparelho: ainda não há comunicação com backend/API externa, e a sincronização é simulada.
-- O login não realiza autenticação real: a validação é apenas de formulário.
+- Sem conexão com o servidor o app permite apenas consultar: criar, editar e excluir exigem a API acessível (ainda não há fila de sincronização offline).
+- O login não realiza autenticação real (validação apenas de formulário) e a API não exige token; por isso ela deve ser exposta apenas em rede local.
+- A API de desenvolvimento usa HTTP sem TLS; em produção deve ser servida por HTTPS.
+- Se dois aparelhos editarem o mesmo item, prevalece a última gravação (sem detecção de conflito).
+- A previsão do tempo (OpenWeatherMap) prevista na proposta ainda não foi integrada.
 - As preferências de Ajustes e o estado "lida" das notificações ainda não são persistidos.
 - A situação do talhão (em dia / pendente / agendado) é escolhida manualmente, não calculada a partir dos registros.
 - As notificações não são disparadas pelo sistema operacional; a tela de notificações apresenta os avisos derivados dos dados fictícios.
@@ -96,25 +109,40 @@ Login
 
 As quatro seções principais ficam sempre acessíveis pela barra inferior (celular) ou pelo menu lateral (tablet e telas largas); as demais telas são empilhadas sobre elas e fechadas pela seta "Voltar" ou pelo botão voltar do aparelho.
 
-Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md`](Docs/etapa-02.md), [`Docs/etapa-03.md`](Docs/etapa-03.md) e [`Docs/etapa-04.md`](Docs/etapa-04.md).
+Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md`](Docs/etapa-02.md), [`Docs/etapa-03.md`](Docs/etapa-03.md), [`Docs/etapa-04.md`](Docs/etapa-04.md) e [`Docs/etapa-05.md`](Docs/etapa-05.md).
 
 ## Tecnologias
 
 | Camada | Tecnologia |
 |---|---|
 | Mobile | Flutter |
-| Backend | Node.js + Express + TypeScript |
-| Banco local (offline) | SQLite (`sqflite`) — implementado na Etapa 4 |
-| Banco em nuvem | PostgreSQL (Supabase) |
-| API externa | OpenWeatherMap (previsão do tempo) |
+| Backend | Node.js + Express + TypeScript — implementado na Etapa 5 (`backend/`) |
+| Banco do servidor | PostgreSQL — local via Docker ou no Supabase |
+| Banco local (offline) | SQLite (`sqflite`) — Etapa 4; cópia local dos dados do servidor desde a Etapa 5 |
+| Comunicação app ↔ API | REST/JSON com o pacote `http` |
+| API externa (planejada) | OpenWeatherMap (previsão do tempo) |
 
 ## Instruções para Execução
 
-Pré-requisitos: [Flutter SDK](https://docs.flutter.dev/get-started/install) instalado e um emulador Android/iOS configurado (ou dispositivo físico conectado). O banco local usa o SQLite nativo do Android/iOS.
+Pré-requisitos: [Flutter SDK](https://docs.flutter.dev/get-started/install), um emulador Android/iOS (ou dispositivo físico), [Node.js](https://nodejs.org/) 20+ e [Docker](https://www.docker.com/) (ou um projeto no Supabase).
+
+**1. Backend** (em um terminal):
+
+```bash
+cd backend
+npm install
+cp .env.example .env        # para usar o Supabase, troque a DATABASE_URL
+docker compose up -d        # PostgreSQL local
+npm run seed                # carga de exemplo
+npm run dev                 # API em http://localhost:3000
+```
+
+**2. App** (em outro terminal, na raiz do projeto):
 
 ```bash
 flutter pub get
-flutter run
+flutter run                                                        # emulador Android → http://10.0.2.2:3000
+flutter run --dart-define=API_URL=http://<IP-do-computador>:3000   # aparelho físico na mesma rede
 ```
 
 Para verificar dispositivos disponíveis: `flutter devices`.
@@ -122,11 +150,12 @@ Para verificar dispositivos disponíveis: `flutter devices`.
 Verificações automatizadas:
 
 ```bash
-flutter analyze   # análise estática
-flutter test      # navegação, acessibilidade e persistência (CRUD e reabertura do banco)
+flutter analyze             # análise estática
+flutter test                # navegação, acessibilidade, persistência local e integração com a API
+cd backend && npm test      # rotas, validação e erros da API (PostgreSQL em memória, sem Docker)
 ```
 
-O roteiro de teste manual da navegação está em [`Docs/etapa-03.md`](Docs/etapa-03.md#8-instruções-para-execução-e-teste-da-navegação), e o da persistência (incluindo fechar e reabrir o app) em [`Docs/etapa-04.md`](Docs/etapa-04.md#8-verificação-da-persistência-após-encerrar-e-reabrir-o-app).
+O roteiro de teste manual da navegação está em [`Docs/etapa-03.md`](Docs/etapa-03.md#8-instruções-para-execução-e-teste-da-navegação), o da persistência (incluindo fechar e reabrir o app) em [`Docs/etapa-04.md`](Docs/etapa-04.md#8-verificação-da-persistência-após-encerrar-e-reabrir-o-app) e o do fluxo completo com o backend em [`Docs/etapa-05.md`](Docs/etapa-05.md#3-passo-a-passo-para-executar-o-fluxo).
 
 ## Estrutura do Projeto
 
@@ -136,8 +165,13 @@ Plotter/
 │   ├── proposta.md        <-- Proposta técnica/comercial (Etapa 1)
 │   ├── etapa-02.md        <-- Documentação da Etapa 2
 │   ├── etapa-03.md        <-- Documentação da Etapa 3
-│   └── etapa-04.md        <-- Documentação da Etapa 4
+│   ├── etapa-04.md        <-- Documentação da Etapa 4
+│   └── etapa-05.md        <-- Documentação da Etapa 5
 ├── README.md               <-- Este arquivo
+├── backend/                 <-- API REST (Node.js + Express + TypeScript)
+│   ├── src/                  <-- Servidor, rotas, validação e acesso ao PostgreSQL
+│   ├── test/                  <-- Testes da API
+│   └── docker-compose.yml      <-- PostgreSQL local
 ├── android/, ios/           <-- Projetos nativos gerados pelo Flutter
 ├── lib/                     <-- Código-fonte do app
 │   ├── main.dart            <-- Ponto de entrada da aplicação
@@ -145,12 +179,12 @@ Plotter/
 │   ├── routes/                <-- Rotas nomeadas e mapa de navegação
 │   ├── utils/                  <-- Feedback visual, anúncios e diálogos
 │   ├── models/                  <-- Modelos de dados (Talhao, Registro)
-│   ├── data/                     <-- Banco SQLite, operações de CRUD e carga inicial
+│   ├── data/                     <-- Cliente da API, banco SQLite e operações de CRUD
 │   ├── widgets/                   <-- Componentes visuais reaproveitáveis
 │   └── screens/                    <-- As telas da aplicação
-└── test/                    <-- Testes automatizados (widgets e persistência)
+└── test/                    <-- Testes automatizados (widgets, persistência e integração com a API)
 ```
 
 ## Documentação
 
-Consulte a proposta técnica/comercial completa em [`Docs/proposta.md`](Docs/proposta.md), a documentação da Etapa 2 em [`Docs/etapa-02.md`](Docs/etapa-02.md), a da Etapa 3 (navegação, UX e acessibilidade) em [`Docs/etapa-03.md`](Docs/etapa-03.md) e a da Etapa 4 (persistência local) em [`Docs/etapa-04.md`](Docs/etapa-04.md).
+Consulte a proposta técnica/comercial completa em [`Docs/proposta.md`](Docs/proposta.md), a documentação da Etapa 2 em [`Docs/etapa-02.md`](Docs/etapa-02.md), a da Etapa 3 (navegação, UX e acessibilidade) em [`Docs/etapa-03.md`](Docs/etapa-03.md) a da Etapa 4 (persistência local) em [`Docs/etapa-04.md`](Docs/etapa-04.md) e a da Etapa 5 (backend e fluxo completo) em [`Docs/etapa-05.md`](Docs/etapa-05.md).

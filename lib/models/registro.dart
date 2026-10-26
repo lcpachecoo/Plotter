@@ -19,7 +19,8 @@ extension TipoInsumoLabel on TipoInsumo {
 /// registro com data até hoje é uma aplicação **realizada**; com data futura,
 /// uma aplicação **agendada**.
 class Registro {
-  /// Chave primária gerada pelo SQLite. É `null` enquanto o registro ainda
+  /// Chave primária gerada pelo banco do servidor (ou pelo SQLite, quando o
+  /// app funciona sem backend). É `null` enquanto o registro ainda
   /// não foi gravado.
   final int? id;
 
@@ -71,6 +72,29 @@ class Registro {
         quantidade: map['quantidade'] as String,
         responsavel: map['responsavel'] as String,
         observacoes: map['observacoes'] as String,
+      );
+
+  /// Converte o registro no JSON trocado com a API (Etapa 5).
+  Map<String, Object?> toJson() => {
+        'talhaoId': talhaoId,
+        'insumo': insumo,
+        'tipo': tipo.name,
+        'data': _dataIso(data),
+        'quantidade': quantidade,
+        'responsavel': responsavel,
+        'observacoes': observacoes,
+      };
+
+  /// Reconstrói o registro a partir do JSON devolvido pela API.
+  factory Registro.fromJson(Map<String, Object?> json) => Registro(
+        id: json['id'] as int,
+        talhaoId: json['talhaoId'] as int,
+        insumo: json['insumo'] as String,
+        tipo: TipoInsumo.values.byName(json['tipo'] as String),
+        data: DateTime.parse(json['data'] as String),
+        quantidade: json['quantidade'] as String,
+        responsavel: json['responsavel'] as String,
+        observacoes: json['observacoes'] as String,
       );
 
   Registro copyWith({

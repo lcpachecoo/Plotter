@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/plotter_api.dart';
 import '../data/plotter_crud.dart';
 import '../models/talhao.dart';
 import '../theme/app_theme.dart';
@@ -94,12 +95,14 @@ class _CadastroTalhaoScreenState extends State<CadastroTalhaoScreen> {
       } else {
         await crud.atualizarTalhao(talhao);
       }
-    } catch (_) {
+    } catch (erro) {
+      // O formulário continua aberto e preenchido: nada do que foi digitado
+      // se perde se o servidor recusar ou não responder.
       if (!mounted) return;
       setState(() => _salvando = false);
       AppFeedback.erro(
         context,
-        'Não foi possível salvar o talhão no aparelho. Tente novamente.',
+        mensagemDeErro(erro, 'Não foi possível salvar o talhão. Tente novamente.'),
       );
       return;
     }

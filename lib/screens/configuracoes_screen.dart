@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../data/plotter_api.dart';
+import '../data/plotter_crud.dart';
 import '../routes/app_routes.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
@@ -21,23 +23,28 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   bool _sincronizando = false;
   bool _notificacoes = true;
   bool _economiaDados = false;
-  String _ultimaSincronizacao = '07:42';
 
+  /// Baixa do servidor os dados mais recentes (Etapa 5: sincronização real,
+  /// antes simulada).
   Future<void> _sincronizar() async {
     if (_sincronizando) return;
 
     setState(() => _sincronizando = true);
     AppFeedback.informacao(context, 'Sincronização iniciada…');
 
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    try {
+      await PlotterCrudScope.read(context).sincronizar();
+    } catch (erro) {
+      if (!mounted) return;
+      setState(() => _sincronizando = false);
+      AppFeedback.erro(
+        context,
+        mensagemDeErro(erro, 'Não foi possível sincronizar. Tente novamente.'),
+      );
+      return;
+    }
     if (!mounted) return;
-
-    final agora = TimeOfDay.now();
-    setState(() {
-      _sincronizando = false;
-      _ultimaSincronizacao =
-          '${agora.hour.toString().padLeft(2, '0')}:${agora.minute.toString().padLeft(2, '0')}';
-    });
+    setState(() => _sincronizando = false);
     AppFeedback.sucesso(context, 'Dados sincronizados com o servidor.');
   }
 
@@ -45,7 +52,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
     final confirmado = await AppFeedback.confirmar(
       context,
       titulo: 'Sair da conta?',
-      mensagem: 'Registros ainda não sincronizados permanecem no aparelho.',
+      mensagem: 'Você precisará entrar novamente para usar o Plotter.',
       confirmarLabel: 'Sair',
       destrutivo: true,
     );
@@ -60,6 +67,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   @override
   Widget build(BuildContext context) {
     final isWide = AppBreakpoints.isWide(context);
+    final crud = PlotterCrudScope.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
@@ -71,16 +79,9 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
             children: [
               const SectionHeader(title: 'Sincronização'),
               const SizedBox(height: 12),
-              MergeSemantics(
-                child: Card(
-                  color: AppTheme.lightGreen.withValues(alpha: 0.18),
-                  child: ListTile(
-                    leading: const Icon(Icons.cloud_done_outlined),
-                    title: const Text('Conectado'),
-                    subtitle: Text(
-                        'Últimos dados sincronizados às $_ultimaSincronizacao'),
-                  ),
-                ),
+              _StatusConexao(
+                status: crud.status,
+                ultimaSincronizacao: crud.ultimaSincronizacao,
               ),
               const SizedBox(height: 8),
               Card(
@@ -94,7 +95,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                       : const Icon(Icons.sync),
                   title: Text(
                       _sincronizando ? 'Sincronizando…' : 'Sincronizar agora'),
-                  subtitle: const Text('Envia os registros pendentes ao servidor'),
+                  subtitle: const Text('Busca no servidor os dados mais recentes'),
                   enabled: !_sincronizando,
                   onTap: _sincronizar,
                 ),
@@ -192,6 +193,65 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
               const SizedBox(height: 24),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cartão com a situação real da conexão com o backend, lida do
+/// [PlotterCrud]. Cor, ícone e texto mudam juntos.
+class _StatusConexao extends StatelessWidget {
+  final StatusServidor status;
+  final DateTime? ultimaSincronizacao;
+
+  const _StatusConexao({required this.status, this.ultimaSincronizacao});
+
+  @override
+  Widget build(BuildContext context) {
+    final ultima = ultimaSincronizacao;
+    final horario = ultima == null
+        ? null
+        : '${ultima.hour.toString().padLeft(2, '0')}:'
+            '${ultima.minute.toString().padLeft(2, '0')}';
+
+    final (IconData icone, Color cor, String titulo, String detalhe) =
+        switch (status) {
+      StatusServidor.conectado => (
+          Icons.cloud_done_outlined,
+          AppTheme.doneGreen,
+          'Conectado ao servidor',
+          horario == null
+              ? 'Dados enviados ao servidor a cada alteração'
+              : 'Últimos dados sincronizados às $horario',
+        ),
+      StatusServidor.verificando => (
+          Icons.cloud_sync_outlined,
+          AppTheme.scheduledBlue,
+          'Conectando ao servidor…',
+          'Buscando os dados mais recentes',
+        ),
+      StatusServidor.offline => (
+          Icons.cloud_off_outlined,
+          AppTheme.pendingOrange,
+          'Sem conexão com o servidor',
+          'Exibindo os dados salvos no aparelho',
+        ),
+      StatusServidor.semServidor => (
+          Icons.phone_android,
+          AppTheme.textSecondary,
+          'Somente neste aparelho',
+          'Nenhum servidor configurado',
+        ),
+    };
+
+    return MergeSemantics(
+      child: Card(
+        color: cor.withValues(alpha: 0.1),
+        child: ListTile(
+          leading: Icon(icone, color: cor),
+          title: Text(titulo),
+          subtitle: Text(detalhe),
         ),
       ),
     );

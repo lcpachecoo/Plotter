@@ -1,8 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Etapa 5: acesso à API do backend. usesCleartextTraffic libera http
+         sem TLS, usado pela API local de desenvolvimento; publicada, a API
+         deve ser servida por HTTPS e esta opção removida. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="plotter"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

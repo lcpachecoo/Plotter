@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/plotter_api.dart';
 import '../data/plotter_crud.dart';
 import '../models/talhao.dart';
 import '../routes/app_routes.dart';
@@ -59,10 +60,10 @@ class _TalhaoDetailScreenState extends State<TalhaoDetailScreen> {
       context,
       titulo: 'Excluir talhão?',
       mensagem: quantidade == 0
-          ? '"${talhao.nome}" será apagado do aparelho. '
+          ? '"${talhao.nome}" será apagado. '
               'Esta ação não pode ser desfeita.'
           : '"${talhao.nome}" e os $quantidade registro(s) de aplicação dele '
-              'serão apagados do aparelho. Esta ação não pode ser desfeita.',
+              'serão apagados. Esta ação não pode ser desfeita.',
       confirmarLabel: 'Excluir',
       destrutivo: true,
     );
@@ -71,10 +72,13 @@ class _TalhaoDetailScreenState extends State<TalhaoDetailScreen> {
     try {
       _excluido = true;
       await crud.removerTalhao(talhao.id!);
-    } catch (_) {
+    } catch (erro) {
       _excluido = false;
       if (!context.mounted) return;
-      AppFeedback.erro(context, 'Não foi possível excluir o talhão. Tente novamente.');
+      AppFeedback.erro(
+        context,
+        mensagemDeErro(erro, 'Não foi possível excluir o talhão. Tente novamente.'),
+      );
       return;
     }
     if (!context.mounted) return;
@@ -236,7 +240,7 @@ class _TalhaoNaoEncontrado extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'Este talhão não está mais cadastrado no aparelho.',
+            'Este talhão não está mais cadastrado.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge,
           ),

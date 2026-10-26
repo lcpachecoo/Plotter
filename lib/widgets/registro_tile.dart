@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/plotter_api.dart';
 import '../data/plotter_crud.dart';
 import '../models/registro.dart';
 import '../routes/app_routes.dart';
@@ -54,7 +55,7 @@ class RegistroTile extends StatelessWidget {
       context,
       titulo: 'Excluir registro?',
       mensagem: 'A aplicação "${registro.insumo}" de ${registro.dataFormatada} '
-          'será apagada do aparelho. Esta ação não pode ser desfeita.',
+          'será apagada. Esta ação não pode ser desfeita.',
       confirmarLabel: 'Excluir',
       destrutivo: true,
     );
@@ -62,9 +63,12 @@ class RegistroTile extends StatelessWidget {
 
     try {
       await crud.removerRegistro(registro.id!);
-    } catch (_) {
+    } catch (erro) {
       if (!context.mounted) return;
-      AppFeedback.erro(context, 'Não foi possível excluir o registro. Tente novamente.');
+      AppFeedback.erro(
+        context,
+        mensagemDeErro(erro, 'Não foi possível excluir o registro. Tente novamente.'),
+      );
       return;
     }
     if (!context.mounted) return;

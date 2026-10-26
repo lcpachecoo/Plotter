@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'data/plotter_api.dart';
 import 'data/plotter_crud.dart';
 import 'routes/app_routes.dart';
 import 'theme/app_theme.dart';
@@ -10,8 +11,18 @@ Future<void> main() async {
   // gravados em execuções anteriores já estão carregados quando o app abre.
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    final crud = await PlotterCrud.abrir();
+    // Etapa 5: os dados vêm do backend. A carga de exemplo agora fica no
+    // servidor (`npm run seed`), por isso o banco local nasce vazio.
+    final crud = await PlotterCrud.abrir(
+      api: PlotterApi(),
+      popularDadosIniciais: false,
+    );
     runApp(PlotterApp(crud: crud));
+
+    // A sincronização inicial não segura a abertura do app: enquanto ela
+    // acontece (ou se o servidor estiver fora do ar) as telas mostram a
+    // cópia local, e o Dashboard avisa quando não há conexão.
+    crud.sincronizar().catchError((Object _) {});
   } catch (_) {
     // Sem o banco o aplicativo não tem o que mostrar: em vez de fechar sem
     // explicação, exibe uma mensagem compreensível.

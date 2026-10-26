@@ -46,6 +46,9 @@ dependencies:
   sqflite: ^2.4.5
   path: ^1.9.1
 
+  # Comunicação com o backend (Etapa 5): requisições HTTP à API REST.
+  http: ^1.6.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

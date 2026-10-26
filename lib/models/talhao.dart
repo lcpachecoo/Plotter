@@ -19,7 +19,8 @@ extension TalhaoStatusLabel on TalhaoStatus {
 /// partir dos registros do talhão (`PlotterCrud.ultimaAplicacao` e
 /// `PlotterCrud.proximaAplicacao`), o que evita informações desatualizadas.
 class Talhao {
-  /// Chave primária gerada pelo SQLite. É `null` enquanto o talhão ainda não
+  /// Chave primária gerada pelo banco do servidor (ou pelo SQLite, quando o
+  /// app funciona sem backend). É `null` enquanto o talhão ainda não
   /// foi gravado.
   final int? id;
   final String nome;
@@ -59,6 +60,28 @@ class Talhao {
         estagio: map['estagio'] as String,
         pivo: map['pivo'] as String,
         status: TalhaoStatus.values.byName(map['status'] as String),
+      );
+
+  /// Converte o talhão no JSON trocado com a API (Etapa 5). O id vai na URL,
+  /// e não no corpo da requisição.
+  Map<String, Object?> toJson() => {
+        'nome': nome,
+        'cultura': cultura,
+        'areaHa': areaHa,
+        'estagio': estagio,
+        'pivo': pivo,
+        'status': status.name,
+      };
+
+  /// Reconstrói o talhão a partir do JSON devolvido pela API.
+  factory Talhao.fromJson(Map<String, Object?> json) => Talhao(
+        id: json['id'] as int,
+        nome: json['nome'] as String,
+        cultura: json['cultura'] as String,
+        areaHa: (json['areaHa'] as num).toDouble(),
+        estagio: json['estagio'] as String,
+        pivo: json['pivo'] as String,
+        status: TalhaoStatus.values.byName(json['status'] as String),
       );
 
   Talhao copyWith({

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/plotter_api.dart';
 import '../data/plotter_crud.dart';
 import '../models/registro.dart';
 import '../models/talhao.dart';
@@ -92,12 +93,12 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
       } else {
         await crud.inserirRegistro(registro);
       }
-    } catch (_) {
+    } catch (erro) {
       if (!mounted) return;
       setState(() => _salvando = false);
       AppFeedback.erro(
         context,
-        'Não foi possível salvar o registro no aparelho. Tente novamente.',
+        mensagemDeErro(erro, 'Não foi possível salvar o registro. Tente novamente.'),
       );
       return;
     }

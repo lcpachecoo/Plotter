@@ -67,7 +67,8 @@ class AjudaScreen extends StatelessWidget {
                     'Toque em um registro para editá-lo, ou use o menu "Opções do '
                     'registro" para excluí-lo. Para excluir um talhão, use o botão '
                     '"Excluir talhão" no fim da tela de detalhes. Toda exclusão pede '
-                    'confirmação. Os dados ficam salvos no aparelho, mesmo sem internet.',
+                    'confirmação. Cada alteração é enviada ao servidor; sem internet, '
+                    'o aplicativo continua exibindo os últimos dados salvos no aparelho.',
               ),
               SizedBox(height: 28),
               SectionHeader(title: 'Recursos de acessibilidade'),

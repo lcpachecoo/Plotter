@@ -1,0 +1,16 @@
+# PostgreSQL local para desenvolvimento e demonstração.
+# Em produção a API aponta para o PostgreSQL do Supabase (ver .env.example).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: plotter
+      POSTGRES_PASSWORD: plotter
+      POSTGRES_DB: plotter
+    ports:
+      - "5432:5432"
+    volumes:
+      - plotter-dados:/var/lib/postgresql/data
+
+volumes:
+  plotter-dados:

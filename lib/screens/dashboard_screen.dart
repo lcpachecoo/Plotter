@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/plotter_api.dart';
 import '../data/plotter_crud.dart';
 import '../models/talhao.dart';
 import '../routes/app_routes.dart';
@@ -51,15 +52,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     AppFeedback.sucesso(context, 'Talhão cadastrado com sucesso.');
   }
 
-  /// "Puxar para atualizar": relê os talhões e registros gravados no banco.
+  /// "Puxar para atualizar": busca no servidor os talhões e registros mais
+  /// recentes. Sem conexão, a lista continua mostrando a cópia local.
   Future<void> _atualizar() async {
     try {
-      await PlotterCrudScope.read(context).carregar();
+      await PlotterCrudScope.read(context).sincronizar();
       if (!mounted) return;
       AppFeedback.informacao(context, 'Lista de talhões atualizada.');
-    } catch (_) {
+    } catch (erro) {
       if (!mounted) return;
-      AppFeedback.erro(context, 'Não foi possível ler os dados salvos no aparelho.');
+      AppFeedback.erro(
+        context,
+        mensagemDeErro(erro, 'Não foi possível atualizar a lista de talhões.'),
+      );
     }
   }
 
@@ -210,6 +215,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         painel[1],
                       ],
                     ),
+                  if (crud.status == StatusServidor.offline) ...[
+                    const SizedBox(height: 12),
+                    _AvisoOffline(onTentarDeNovo: _atualizar),
+                  ],
                   if (_filtro != null) ...[
                     const SizedBox(height: 12),
                     _AvisoFiltro(
@@ -298,6 +307,45 @@ class _AvisoFiltro extends StatelessWidget {
             onPressed: onLimpar,
             icon: const Icon(Icons.close, size: 20),
             label: const Text('Limpar'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Faixa exibida quando o servidor não respondeu: explica que os dados são
+/// os últimos salvos no aparelho e que alterações dependem da conexão.
+class _AvisoOffline extends StatelessWidget {
+  final Future<void> Function() onTentarDeNovo;
+
+  const _AvisoOffline({required this.onTentarDeNovo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: AppTheme.pendingOrange.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.pendingOrange.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const ExcludeSemantics(
+            child: Icon(Icons.cloud_off_outlined, color: AppTheme.pendingOrange),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Sem conexão com o servidor. Exibindo os dados salvos no '
+              'aparelho; para salvar alterações é preciso estar conectado.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+          TextButton(
+            onPressed: onTentarDeNovo,
+            child: const Text('Tentar de novo'),
           ),
         ],
       ),
