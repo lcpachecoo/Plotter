@@ -70,6 +70,16 @@ class AjudaScreen extends StatelessWidget {
                     'confirmação. Cada alteração é enviada ao servidor; sem internet, '
                     'o aplicativo continua exibindo os últimos dados salvos no aparelho.',
               ),
+              SizedBox(height: 12),
+              _ItemAjuda(
+                icone: Icons.wb_sunny_outlined,
+                titulo: 'Previsão do tempo',
+                texto:
+                    'O detalhe do talhão mostra a previsão dos próximos 5 dias e indica '
+                    'os dias favoráveis para pulverizar (pouco vento, sem chuva, sem '
+                    'calor excessivo). Ao lançar uma aplicação para hoje ou para os '
+                    'próximos dias, o formulário mostra a previsão da data escolhida.',
+              ),
               SizedBox(height: 28),
               SectionHeader(title: 'Recursos de acessibilidade'),
               SizedBox(height: 12),

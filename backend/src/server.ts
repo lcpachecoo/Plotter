@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import { criarApp } from './app.js';
+import { configClimaDoAmbiente, ServicoClima } from './clima.js';
 import { criarEsquema, criarPool } from './db.js';
 
 // Ponto de entrada: lê a configuração do .env, garante as tabelas e sobe a
@@ -23,6 +24,16 @@ try {
   process.exit(1);
 }
 
-criarApp(pool).listen(PORTA, HOST, () => {
+// Previsão do tempo (Etapa 6): sem a chave, o resto da API funciona e a rota
+// /clima/previsao responde 503 explicando que não está configurada.
+const clima = new ServicoClima(configClimaDoAmbiente());
+if (!clima.configurado) {
+  console.warn(
+    'Previsão do tempo desativada: defina OPENWEATHER_API_KEY, FAZENDA_LAT e ' +
+      'FAZENDA_LON no arquivo .env (veja .env.example).',
+  );
+}
+
+criarApp(pool, { clima }).listen(PORTA, HOST, () => {
   console.log(`API do Plotter em http://localhost:${PORTA}`);
 });

@@ -7,6 +7,7 @@ import '../models/talhao.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
 import '../widgets/app_text_field.dart';
+import '../widgets/previsao_tempo_card.dart';
 import '../widgets/primary_button.dart';
 
 /// Formulário para lançar (ou editar) uma aplicação de insumo em um talhão.
@@ -16,6 +17,9 @@ import '../widgets/primary_button.dart';
 /// - Com [registro], o formulário é pré-preenchido e salvar atualiza o
 ///   registro existente.
 /// - Sem nenhum dos dois (aberto pelo Histórico), o usuário escolhe o talhão.
+///
+/// Para datas de hoje em diante, mostra a previsão do tempo do dia escolhido
+/// (Etapa 6), ajudando a decidir se é um bom dia para aplicar.
 ///
 /// Ao salvar, o registro é gravado no banco local e a tela devolve `true`
 /// para a tela anterior, que exibe a confirmação.
@@ -51,6 +55,13 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
   bool _alterado = false;
 
   bool get _isEdicao => widget.registro != null;
+
+  /// A previsão do tempo só interessa para aplicações de hoje em diante.
+  bool get _mostrarPrevisao {
+    final data = _data;
+    return data != null &&
+        !DateUtils.dateOnly(data).isBefore(DateUtils.dateOnly(DateTime.now()));
+  }
 
   @override
   void dispose() {
@@ -129,7 +140,8 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
   @override
   Widget build(BuildContext context) {
     final isWide = AppBreakpoints.isWide(context);
-    final talhoes = PlotterCrudScope.of(context).talhoes;
+    final crud = PlotterCrudScope.of(context);
+    final talhoes = crud.talhoes;
 
     return PopScope(
       canPop: !_alterado && !_salvando,
@@ -265,6 +277,11 @@ class _NovoRegistroScreenState extends State<NovoRegistroScreen> {
                           _alterado = true;
                         }),
                       ),
+                      // Etapa 6: condições do tempo para a data escolhida.
+                      if (crud.previsaoDisponivel && _mostrarPrevisao) ...[
+                        const SizedBox(height: 12),
+                        PrevisaoDoDiaCard(data: _data!),
+                      ],
                       const SizedBox(height: 16),
                       AppTextField(
                         label: 'Responsável',

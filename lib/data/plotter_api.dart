@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/previsao_tempo.dart';
 import '../models/registro.dart';
 import '../models/talhao.dart';
 
@@ -98,6 +99,23 @@ class PlotterApi {
   Future<void> removerRegistro(int id) => _enviar('DELETE', '/registros/$id');
 
   // -------------------------------------------------------------------------
+  // Previsão do tempo (Etapa 6)
+  // -------------------------------------------------------------------------
+
+  /// Previsão dos próximos dias para a fazenda. O backend consulta o serviço
+  /// externo OpenWeatherMap com a chave guardada nele; o app nunca recebe a
+  /// chave nem fala direto com o serviço.
+  Future<PrevisaoTempo> previsaoDoTempo() async {
+    final dados = await _enviar('GET', '/clima/previsao');
+    try {
+      return PrevisaoTempo.fromJson(dados as Map<String, Object?>);
+    } catch (_) {
+      // Campo ausente ou de tipo inesperado no JSON.
+      throw const ApiException('O servidor enviou uma resposta inválida.');
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Comunicação
   // -------------------------------------------------------------------------
 
@@ -157,6 +175,10 @@ class PlotterApi {
       // Erro de validação: os motivos de cada campo dizem o que corrigir.
       400 when campos.isNotEmpty => campos.values.join(' '),
       404 => 'Este item não existe mais no servidor. Atualize a lista.',
+      // 502, 503 e 504: o servidor está no ar, mas o serviço externo que ele
+      // consulta (previsão do tempo) falhou. A mensagem do servidor diz o
+      // que houve (não configurado, limite de consultas, demora...).
+      502 || 503 || 504 when mapa['erro'] is String => mapa['erro'] as String,
       >= 500 => 'O servidor encontrou um erro. Tente novamente em instantes.',
       _ => mapa['erro'] as String? ?? 'Não foi possível concluir a operação.',
     };

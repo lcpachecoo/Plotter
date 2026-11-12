@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../models/previsao_tempo.dart';
 import '../models/registro.dart';
 import '../models/talhao.dart';
 import 'database_helper.dart';
@@ -49,6 +50,13 @@ class PlotterCrud extends ChangeNotifier {
 
   StatusServidor _status;
   DateTime? _ultimaSincronizacao;
+
+  PrevisaoTempo? _previsao;
+  DateTime? _previsaoConsultadaEm;
+
+  /// Por quanto tempo a previsão já recebida é reaproveitada entre telas
+  /// (ex.: do detalhe do talhão para o formulário de registro).
+  static const validadePrevisao = Duration(minutes: 10);
 
   /// Abre o banco e já carrega os dados gravados (recuperação dos dados ao
   /// reiniciar o aplicativo).
@@ -251,6 +259,43 @@ class PlotterCrud extends ChangeNotifier {
     if (api != null) await _chamar(() => api.removerRegistro(id));
     await _db.delete('registros', where: 'id = ?', whereArgs: [id]);
     await carregar();
+  }
+
+  // ---------------------------------------------------------------------
+  // Previsão do tempo (Etapa 6): serviço externo, consultado via backend
+  // ---------------------------------------------------------------------
+
+  /// A previsão vem pelo servidor; sem ele (testes da Etapa 4), as telas não
+  /// exibem o cartão de previsão.
+  bool get previsaoDisponivel => _api != null;
+
+  /// Previsão recebida há menos de [validadePrevisao], ou `null`. Permite à
+  /// tela começar já com os dados, sem mostrar o carregamento de novo.
+  PrevisaoTempo? get previsaoRecente {
+    final consultadaEm = _previsaoConsultadaEm;
+    if (consultadaEm == null ||
+        DateTime.now().difference(consultadaEm) >= validadePrevisao) {
+      return null;
+    }
+    return _previsao;
+  }
+
+  /// Consulta a previsão do tempo da fazenda no servidor (que por sua vez
+  /// consulta o OpenWeatherMap). Falhas chegam como [ApiException] com a
+  /// mensagem pronta para a tela.
+  Future<PrevisaoTempo> previsaoDoTempo() async {
+    final recente = previsaoRecente;
+    if (recente != null) return recente;
+
+    final api = _api;
+    if (api == null) {
+      throw const ApiException(
+          'A previsão do tempo depende da conexão com o servidor.');
+    }
+    final previsao = await _chamar(api.previsaoDoTempo);
+    _previsao = previsao;
+    _previsaoConsultadaEm = DateTime.now();
+    return previsao;
   }
 
   /// Fecha a conexão com o banco (usado pelos testes ao simular o

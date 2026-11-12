@@ -16,13 +16,14 @@ Substitui o controle manual em papel/cadernos pelo registro digital das aplicaç
 
 Produtores agrícolas, gerentes de fazenda e operadores de campo responsáveis pelo manejo diário de lavouras.
 
-## Funcionalidades Implementadas (Etapas 2 a 5)
+## Funcionalidades Implementadas (Etapas 2 a 6)
 
-Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou o fluxo de navegação completo, ergonomia das ações e acessibilidade; na Etapa 4 os dados passaram a ser gravados em um banco SQLite no próprio aparelho; na Etapa 5 o app passou a usar um backend próprio (API REST + PostgreSQL):
+Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou o fluxo de navegação completo, ergonomia das ações e acessibilidade; na Etapa 4 os dados passaram a ser gravados em um banco SQLite no próprio aparelho; na Etapa 5 o app passou a usar um backend próprio (API REST + PostgreSQL); na Etapa 6 ganhou a previsão do tempo, vinda do serviço externo OpenWeatherMap:
 
 - Login de acesso, com validação por campo, estado de carregamento e mostrar/ocultar senha
 - Dashboard com painel de status (em dia / pendente), filtro por situação e lista de talhões
 - Detalhes do talhão (cultura, estágio, última e próxima aplicação) com ações conectadas
+- Previsão do tempo dos próximos 5 dias, indicando os dias favoráveis para pulverizar
 - Cadastro, edição e exclusão de talhão (formulário com aviso de alterações não salvas)
 - Lançamento, edição e exclusão de registros de aplicação (formulário com data validada; data futura = aplicação agendada)
 - Histórico de aplicações em duas abas: realizadas e agendadas
@@ -31,6 +32,16 @@ Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou
 - Ajuda e acessibilidade: mapa de navegação dentro do próprio aplicativo
 - Configurações, preferências e status real da conexão com o servidor, com sincronização manual
 - Navegação adaptável: barra inferior no celular, menu lateral em tablets e menu lateral estendido em telas largas
+
+### Previsão do tempo — serviço externo (Etapa 6)
+
+- Integração com o **OpenWeatherMap** (previsão de 5 dias em intervalos de 3 horas), feita pelo backend na rota `GET /clima/previsao`. A chave do serviço fica só no `backend/.env`, nunca no app ou no repositório
+- O servidor resume a previsão por dia e avalia cada intervalo de 3 horas para pulverização: sem chuva, vento de até 10 km/h, temperatura de até 30 °C e umidade de pelo menos 50%
+- Cartão **"Condições para aplicação"** no detalhe do talhão, com selo *Favorável* / *Evitar*, motivo e horários favoráveis de cada dia
+- No formulário de registro, a previsão da data escolhida aparece logo abaixo do campo de data
+- Estados tratados: carregando, sucesso, erro (com "Tentar de novo") e ausência de dados (sem previsão ou data além dos 5 dias)
+- Erros do serviço externo (não configurado, chave inválida, limite de consultas, demora, fora do ar) viram mensagens claras no app; cache de 30 min no servidor e de 10 min no app
+- Serviço, endpoints, formato dos dados, configuração e roteiro de teste em [`Docs/etapa-06.md`](Docs/etapa-06.md)
 
 ### Backend e integração (Etapa 5)
 
@@ -66,7 +77,7 @@ Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou
 - O login não realiza autenticação real (validação apenas de formulário) e a API não exige token; por isso ela deve ser exposta apenas em rede local.
 - A API de desenvolvimento usa HTTP sem TLS; em produção deve ser servida por HTTPS.
 - Se dois aparelhos editarem o mesmo item, prevalece a última gravação (sem detecção de conflito).
-- A previsão do tempo (OpenWeatherMap) prevista na proposta ainda não foi integrada.
+- A previsão do tempo usa uma única localização para a fazenda inteira, cobre só os próximos 5 dias e não fica disponível sem conexão.
 - As preferências de Ajustes e o estado "lida" das notificações ainda não são persistidos.
 - A situação do talhão (em dia / pendente / agendado) é escolhida manualmente, não calculada a partir dos registros.
 - As notificações não são disparadas pelo sistema operacional; a tela de notificações apresenta os avisos derivados dos dados fictícios.
@@ -109,7 +120,7 @@ Login
 
 As quatro seções principais ficam sempre acessíveis pela barra inferior (celular) ou pelo menu lateral (tablet e telas largas); as demais telas são empilhadas sobre elas e fechadas pela seta "Voltar" ou pelo botão voltar do aparelho.
 
-Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md`](Docs/etapa-02.md), [`Docs/etapa-03.md`](Docs/etapa-03.md), [`Docs/etapa-04.md`](Docs/etapa-04.md) e [`Docs/etapa-05.md`](Docs/etapa-05.md).
+Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md`](Docs/etapa-02.md), [`Docs/etapa-03.md`](Docs/etapa-03.md), [`Docs/etapa-04.md`](Docs/etapa-04.md), [`Docs/etapa-05.md`](Docs/etapa-05.md) e [`Docs/etapa-06.md`](Docs/etapa-06.md).
 
 ## Tecnologias
 
@@ -120,7 +131,7 @@ Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md
 | Banco do servidor | PostgreSQL — local via Docker ou no Supabase |
 | Banco local (offline) | SQLite (`sqflite`) — Etapa 4; cópia local dos dados do servidor desde a Etapa 5 |
 | Comunicação app ↔ API | REST/JSON com o pacote `http` |
-| API externa (planejada) | OpenWeatherMap (previsão do tempo) |
+| API externa | OpenWeatherMap (previsão do tempo) — Etapa 6, consultado pelo backend |
 
 ## Instruções para Execução
 
@@ -131,7 +142,7 @@ Pré-requisitos: [Flutter SDK](https://docs.flutter.dev/get-started/install), um
 ```bash
 cd backend
 npm install
-cp .env.example .env        # para usar o Supabase, troque a DATABASE_URL
+cp .env.example .env        # preencha OPENWEATHER_API_KEY; para usar o Supabase, troque a DATABASE_URL
 docker compose up -d        # PostgreSQL local
 npm run seed                # carga de exemplo
 npm run dev                 # API em http://localhost:3000
@@ -147,15 +158,17 @@ flutter run --dart-define=API_URL=http://<IP-do-computador>:3000   # aparelho f�
 
 Para verificar dispositivos disponíveis: `flutter devices`.
 
+**Previsão do tempo:** crie uma conta gratuita no [OpenWeatherMap](https://home.openweathermap.org/users/sign_up), copie a chave em *API keys* e coloque-a em `OPENWEATHER_API_KEY` no `backend/.env`, junto com as coordenadas da fazenda (`FAZENDA_LAT` e `FAZENDA_LON`). Chaves novas podem levar até 2 horas para serem ativadas. Sem a chave, o resto do app funciona normalmente e o cartão de previsão informa que o serviço não está configurado. Detalhes em [`Docs/etapa-06.md`](Docs/etapa-06.md#7-configuração-do-serviço).
+
 Verificações automatizadas:
 
 ```bash
 flutter analyze             # análise estática
-flutter test                # navegação, acessibilidade, persistência local e integração com a API
-cd backend && npm test      # rotas, validação e erros da API (PostgreSQL em memória, sem Docker)
+flutter test                # navegação, acessibilidade, persistência local, integração com a API e previsão do tempo
+cd backend && npm test      # rotas, validação, erros e integração com o OpenWeatherMap (simulado, sem internet nem Docker)
 ```
 
-O roteiro de teste manual da navegação está em [`Docs/etapa-03.md`](Docs/etapa-03.md#8-instruções-para-execução-e-teste-da-navegação), o da persistência (incluindo fechar e reabrir o app) em [`Docs/etapa-04.md`](Docs/etapa-04.md#8-verificação-da-persistência-após-encerrar-e-reabrir-o-app) e o do fluxo completo com o backend em [`Docs/etapa-05.md`](Docs/etapa-05.md#3-passo-a-passo-para-executar-o-fluxo).
+O roteiro de teste manual da navegação está em [`Docs/etapa-03.md`](Docs/etapa-03.md#8-instruções-para-execução-e-teste-da-navegação), o da persistência (incluindo fechar e reabrir o app) em [`Docs/etapa-04.md`](Docs/etapa-04.md#8-verificação-da-persistência-após-encerrar-e-reabrir-o-app), o do fluxo completo com o backend em [`Docs/etapa-05.md`](Docs/etapa-05.md#3-passo-a-passo-para-executar-o-fluxo) e o da previsão do tempo em [`Docs/etapa-06.md`](Docs/etapa-06.md#82-roteiro-de-teste-manual).
 
 ## Estrutura do Projeto
 
@@ -166,10 +179,11 @@ Plotter/
 │   ├── etapa-02.md        <-- Documentação da Etapa 2
 │   ├── etapa-03.md        <-- Documentação da Etapa 3
 │   ├── etapa-04.md        <-- Documentação da Etapa 4
-│   └── etapa-05.md        <-- Documentação da Etapa 5
+│   ├── etapa-05.md        <-- Documentação da Etapa 5
+│   └── etapa-06.md        <-- Documentação da Etapa 6
 ├── README.md               <-- Este arquivo
 ├── backend/                 <-- API REST (Node.js + Express + TypeScript)
-│   ├── src/                  <-- Servidor, rotas, validação e acesso ao PostgreSQL
+│   ├── src/                  <-- Servidor, rotas, validação, PostgreSQL e integração com o OpenWeatherMap
 │   ├── test/                  <-- Testes da API
 │   └── docker-compose.yml      <-- PostgreSQL local
 ├── android/, ios/           <-- Projetos nativos gerados pelo Flutter
@@ -178,13 +192,13 @@ Plotter/
 │   ├── theme/                <-- Tema visual, contraste e breakpoints responsivos
 │   ├── routes/                <-- Rotas nomeadas e mapa de navegação
 │   ├── utils/                  <-- Feedback visual, anúncios e diálogos
-│   ├── models/                  <-- Modelos de dados (Talhao, Registro)
+│   ├── models/                  <-- Modelos de dados (Talhao, Registro, PrevisaoTempo)
 │   ├── data/                     <-- Cliente da API, banco SQLite e operações de CRUD
 │   ├── widgets/                   <-- Componentes visuais reaproveitáveis
 │   └── screens/                    <-- As telas da aplicação
-└── test/                    <-- Testes automatizados (widgets, persistência e integração com a API)
+└── test/                    <-- Testes automatizados (widgets, persistência, integração com a API e previsão do tempo)
 ```
 
 ## Documentação
 
-Consulte a proposta técnica/comercial completa em [`Docs/proposta.md`](Docs/proposta.md), a documentação da Etapa 2 em [`Docs/etapa-02.md`](Docs/etapa-02.md), a da Etapa 3 (navegação, UX e acessibilidade) em [`Docs/etapa-03.md`](Docs/etapa-03.md) a da Etapa 4 (persistência local) em [`Docs/etapa-04.md`](Docs/etapa-04.md) e a da Etapa 5 (backend e fluxo completo) em [`Docs/etapa-05.md`](Docs/etapa-05.md).
+Consulte a proposta técnica/comercial completa em [`Docs/proposta.md`](Docs/proposta.md), a documentação da Etapa 2 em [`Docs/etapa-02.md`](Docs/etapa-02.md), a da Etapa 3 (navegação, UX e acessibilidade) em [`Docs/etapa-03.md`](Docs/etapa-03.md) a da Etapa 4 (persistência local) em [`Docs/etapa-04.md`](Docs/etapa-04.md), a da Etapa 5 (backend e fluxo completo) em [`Docs/etapa-05.md`](Docs/etapa-05.md) e a da Etapa 6 (integração com o serviço externo de previsão do tempo) em [`Docs/etapa-06.md`](Docs/etapa-06.md).

@@ -6,6 +6,7 @@ import '../models/talhao.dart';
 import '../routes/app_routes.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
+import '../widgets/previsao_tempo_card.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/registro_tile.dart';
 import '../widgets/section_header.dart';
@@ -162,6 +163,12 @@ class _TalhaoDetailScreenState extends State<TalhaoDetailScreen> {
                     title: 'Próxima aplicação',
                     value: crud.resumoProximaAplicacao(talhaoId),
                   ),
+                  // Etapa 6: previsão do tempo (serviço externo, via backend)
+                  // para decidir quando aplicar.
+                  if (crud.previsaoDisponivel) ...[
+                    const SizedBox(height: 12),
+                    const PrevisaoTempoCard(),
+                  ],
                   const SizedBox(height: 28),
                   // Ações do talhão: a principal (lançar aplicação) vem
                   // primeiro e em destaque; a secundária, contornada; a
