@@ -1,49 +1,43 @@
 import 'package:flutter/material.dart';
 
 import '../data/plotter_crud.dart';
-import '../models/talhao.dart';
+import '../models/aviso.dart';
 import '../routes/app_routes.dart';
+import '../state/preferencias.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
+import '../widgets/aviso_lembretes.dart';
 
 /// Central de notificações: avisos de aplicações pendentes e agendadas.
 ///
 /// É uma tela secundária, acessada pelo sino da barra superior do Dashboard
 /// (ou pelo menu lateral em telas largas) e fechada pelo botão "voltar" da
 /// barra superior, mantendo o usuário no mesmo fluxo de onde saiu.
-class NotificacoesScreen extends StatefulWidget {
+///
+/// Etapa 7: o estado "lido" de cada aviso deixou de ficar dentro desta tela
+/// (`setState`) e passou para o estado global [Preferencias]. Assim ele
+/// continua valendo ao sair e voltar, ao fechar o app, e o contador do sino
+/// no Dashboard diminui assim que um aviso é lido aqui.
+class NotificacoesScreen extends StatelessWidget {
   const NotificacoesScreen({super.key});
 
-  @override
-  State<NotificacoesScreen> createState() => _NotificacoesScreenState();
-}
-
-class _NotificacoesScreenState extends State<NotificacoesScreen> {
-  /// Identificadores dos talhões cujas notificações já foram lidas. O estado
-  /// vale enquanto a tela está aberta; os avisos em si são derivados dos
-  /// talhões gravados no banco.
-  final Set<int> _lidas = {};
-
-  List<Talhao> _pendentes(PlotterCrud crud) => crud.talhoes
-      .where((t) => t.status != TalhaoStatus.feito)
-      .toList(growable: false);
-
-  void _marcarTodasComoLidas() {
-    final crud = PlotterCrudScope.read(context);
-    setState(() => _lidas.addAll(_pendentes(crud).map((t) => t.id!)));
+  void _marcarTodasComoLidas(BuildContext context) {
+    final avisos = PlotterCrudScope.read(context).avisos;
+    PreferenciasScope.read(context).marcarTodosComoLidos(avisos);
     AppFeedback.sucesso(context, 'Todas as notificações foram marcadas como lidas.');
   }
 
-  void _abrirTalhao(Talhao talhao) {
-    setState(() => _lidas.add(talhao.id!));
-    AppRoutes.abrirTalhao(context, talhao);
+  void _abrirAviso(BuildContext context, Aviso aviso) {
+    PreferenciasScope.read(context).marcarComoLido(aviso);
+    AppRoutes.abrirTalhao(context, aviso.talhao);
   }
 
   @override
   Widget build(BuildContext context) {
     final crud = PlotterCrudScope.of(context);
-    final notificacoes = _pendentes(crud);
-    final naoLidas = notificacoes.where((t) => !_lidas.contains(t.id)).length;
+    final preferencias = PreferenciasScope.of(context);
+    final avisos = crud.avisos;
+    final naoLidas = preferencias.naoLidos(avisos);
     final isWide = AppBreakpoints.isWide(context);
 
     return Scaffold(
@@ -52,7 +46,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
         actions: [
           IconButton(
             tooltip: 'Marcar todas como lidas',
-            onPressed: naoLidas == 0 ? null : _marcarTodasComoLidas,
+            onPressed: naoLidas == 0 ? null : () => _marcarTodasComoLidas(context),
             icon: const Icon(Icons.done_all),
           ),
         ],
@@ -60,31 +54,46 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: isWide ? 700 : double.infinity),
-          child: notificacoes.isEmpty
-              ? const _SemNotificacoes()
+          child: avisos.isEmpty
+              ? const Column(
+                  children: [
+                    AvisoLembretes(margem: EdgeInsets.all(16)),
+                    Expanded(child: _SemNotificacoes()),
+                  ],
+                )
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
-                  itemCount: notificacoes.length + 1,
+                  itemCount: avisos.length + 1,
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     if (index == 0) {
-                      return Semantics(
-                        header: true,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            naoLidas == 0
-                                ? 'Nenhuma notificação não lida'
-                                : '$naoLidas notificação(ões) não lida(s)',
-                            style: Theme.of(context).textTheme.titleMedium,
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Convite para ativar os lembretes do sistema (ou
+                          // aviso de que estão bloqueados). Some quando ativos.
+                          const AvisoLembretes(
+                            margem: EdgeInsets.only(bottom: 16),
                           ),
-                        ),
+                          Semantics(
+                            header: true,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                naoLidas == 0
+                                    ? 'Nenhuma notificação não lida'
+                                    : '$naoLidas notificação(ões) não lida(s)',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                          ),
+                        ],
                       );
                     }
 
-                    final talhao = notificacoes[index - 1];
-                    final lida = _lidas.contains(talhao.id);
-                    final pendente = talhao.status == TalhaoStatus.pendente;
+                    final aviso = avisos[index - 1];
+                    final lida = preferencias.foiLido(aviso);
+                    final pendente = aviso.pendente;
 
                     return Card(
                       // Notificações não lidas ganham fundo destacado, além
@@ -105,14 +114,12 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                           ),
                         ),
                         title: Text(
-                          pendente
-                              ? 'Aplicação pendente em ${talhao.nome}'
-                              : 'Aplicação agendada em ${talhao.nome}',
+                          aviso.titulo,
                           style: TextStyle(
                             fontWeight: lida ? FontWeight.w500 : FontWeight.w700,
                           ),
                         ),
-                        subtitle: Text(crud.resumoProximaAplicacao(talhao.id!)),
+                        subtitle: Text(crud.resumoProximaAplicacao(aviso.talhao.id!)),
                         // O ponto verde marca visualmente o item não lido; o
                         // rótulo semântico transmite o mesmo estado a quem
                         // usa leitor de tela.
@@ -126,7 +133,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                                   color: AppTheme.primaryGreen,
                                 ),
                               ),
-                        onTap: () => _abrirTalhao(talhao),
+                        onTap: () => _abrirAviso(context, aviso),
                       ),
                     );
                   },

@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../data/plotter_api.dart';
 import '../data/plotter_crud.dart';
 import '../routes/app_routes.dart';
+import '../state/lembretes.dart';
+import '../state/preferencias.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
+import '../widgets/aviso_lembretes.dart';
 import '../widgets/section_header.dart';
 
 /// Tela de Configurações/Sincronização: status offline/online, preferências
@@ -21,8 +24,20 @@ class ConfiguracoesScreen extends StatefulWidget {
 
 class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   bool _sincronizando = false;
-  bool _notificacoes = true;
-  bool _economiaDados = false;
+
+  /// Enquanto o pedido de permissão do sistema está aberto, o interruptor
+  /// fica travado para evitar um segundo toque.
+  bool _alternandoLembretes = false;
+
+  // Etapa 7: as preferências saíram daqui (antes eram `bool` desta tela,
+  // perdidas ao fechar o app) e passaram para o estado global
+  // [Preferencias], gravado no aparelho.
+
+  Future<void> _alternarLembretes(bool ativar) async {
+    setState(() => _alternandoLembretes = true);
+    await alternarLembretes(context, ativar);
+    if (mounted) setState(() => _alternandoLembretes = false);
+  }
 
   /// Baixa do servidor os dados mais recentes (Etapa 5: sincronização real,
   /// antes simulada).
@@ -68,6 +83,9 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   Widget build(BuildContext context) {
     final isWide = AppBreakpoints.isWide(context);
     final crud = PlotterCrudScope.of(context);
+    final preferencias = PreferenciasScope.of(context);
+    final lembretes = LembretesScope.of(context);
+    final situacao = lembretes.situacao;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
@@ -139,29 +157,44 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
               Card(
                 child: Column(
                   children: [
+                    // Recurso nativo (Etapa 7): lembretes pelas
+                    // notificações do sistema. Ligado quando o usuário quer
+                    // os lembretes e o aparelho permite entregá-los.
                     SwitchListTile(
                       secondary: const Icon(Icons.notifications_active_outlined),
-                      title: const Text('Notificações push'),
-                      subtitle: const Text('Avisos de aplicações agendadas'),
-                      value: _notificacoes,
-                      onChanged: (valor) {
-                        setState(() => _notificacoes = valor);
-                        AppFeedback.informacao(
-                          context,
-                          valor
-                              ? 'Notificações push ativadas.'
-                              : 'Notificações push desativadas.',
-                        );
-                      },
+                      title: const Text('Lembretes de aplicações'),
+                      subtitle: Text(descricaoLembretes(lembretes)),
+                      value: preferencias.lembretesAtivos &&
+                          situacao != SituacaoLembretes.semPermissao &&
+                          situacao != SituacaoLembretes.indisponivel,
+                      onChanged: _alternandoLembretes ||
+                              situacao == SituacaoLembretes.verificando ||
+                              situacao == SituacaoLembretes.indisponivel
+                          ? null
+                          : _alternarLembretes,
                     ),
+                    if (situacao == SituacaoLembretes.semPermissao)
+                      ListTile(
+                        leading: const Icon(Icons.open_in_new),
+                        title: const Text('Permitir notificações'),
+                        subtitle: const Text(
+                            'Abre as configurações do aparelho para o Plotter'),
+                        onTap: () => abrirConfiguracoesDeNotificacao(context),
+                      ),
+                    if (situacao == SituacaoLembretes.falha)
+                      ListTile(
+                        leading: const Icon(Icons.refresh),
+                        title: const Text('Tentar agendar de novo'),
+                        onTap: lembretes.tentarDeNovo,
+                      ),
                     const Divider(height: 1),
                     SwitchListTile(
                       secondary: const Icon(Icons.wifi_off_outlined),
                       title: const Text('Modo economia de dados'),
                       subtitle: const Text('Sincroniza apenas em rede Wi-Fi'),
-                      value: _economiaDados,
+                      value: preferencias.economiaDados,
                       onChanged: (valor) {
-                        setState(() => _economiaDados = valor);
+                        preferencias.definirEconomiaDados(valor);
                         AppFeedback.informacao(
                           context,
                           valor

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/plotter_crud.dart';
 import '../routes/app_routes.dart';
+import '../state/lembretes.dart';
+import '../state/preferencias.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
 import 'configuracoes_screen.dart';
@@ -93,6 +96,45 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   late HomeTab _aba = widget.abaInicial;
+
+  /// Lembretes acompanhados por esta casca: quando o usuário toca em um
+  /// lembrete do sistema, o talhão correspondente é aberto aqui.
+  Lembretes? _lembretes;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final lembretes = LembretesScope.read(context);
+    if (identical(lembretes, _lembretes)) return;
+    _lembretes?.talhaoSolicitado.removeListener(_abrirTalhaoSolicitado);
+    _lembretes = lembretes..talhaoSolicitado.addListener(_abrirTalhaoSolicitado);
+    // O toque pode ter acontecido antes do login (app aberto pelo lembrete):
+    // o pedido ficou guardado e é atendido assim que a casca aparece.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _abrirTalhaoSolicitado());
+  }
+
+  @override
+  void dispose() {
+    _lembretes?.talhaoSolicitado.removeListener(_abrirTalhaoSolicitado);
+    super.dispose();
+  }
+
+  void _abrirTalhaoSolicitado() {
+    final lembretes = _lembretes;
+    if (!mounted || lembretes == null || lembretes.talhaoSolicitado.value == null) {
+      return;
+    }
+    final talhaoId = lembretes.consumirTalhaoSolicitado()!;
+    final talhao = PlotterCrudScope.read(context).buscarTalhao(talhaoId);
+    if (talhao == null) {
+      AppFeedback.informacao(
+        context,
+        'O talhão deste lembrete não existe mais. Ele pode ter sido excluído.',
+      );
+      return;
+    }
+    AppRoutes.abrirTalhao(context, talhao);
+  }
 
   static const _telas = [
     DashboardScreen(),
@@ -252,12 +294,7 @@ class _MenuLateral extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  tooltip: 'Notificações',
-                  onPressed: () =>
-                      Navigator.of(context).pushNamed(AppRoutes.notificacoes),
-                  icon: const Icon(Icons.notifications_outlined),
-                ),
+                const _SinoNotificacoes(),
                 IconButton(
                   tooltip: 'Ajuda e acessibilidade',
                   onPressed: () => Navigator.of(context).pushNamed(AppRoutes.ajuda),
@@ -277,6 +314,28 @@ class _MenuLateral extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 4),
           ),
       ],
+    );
+  }
+}
+
+/// Sino do menu lateral, com o mesmo contador de avisos não lidos do
+/// Dashboard: os dois leem o mesmo estado global.
+class _SinoNotificacoes extends StatelessWidget {
+  const _SinoNotificacoes();
+
+  @override
+  Widget build(BuildContext context) {
+    final avisos = PlotterCrudScope.of(context).avisos;
+    final naoLidas = PreferenciasScope.of(context).naoLidos(avisos);
+    return IconButton(
+      tooltip: naoLidas == 0 ? 'Notificações' : 'Notificações ($naoLidas não lidas)',
+      onPressed: () => Navigator.of(context).pushNamed(AppRoutes.notificacoes),
+      icon: Badge(
+        isLabelVisible: naoLidas > 0,
+        label: Text('$naoLidas'),
+        backgroundColor: AppTheme.pendingOrange,
+        child: const Icon(Icons.notifications_outlined),
+      ),
     );
   }
 }

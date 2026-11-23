@@ -3,6 +3,15 @@
          sem TLS, usado pela API local de desenvolvimento; publicada, a API
          deve ser servida por HTTPS e esta opção removida. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Etapa 7: lembretes de aplicações agendadas (notificações locais).
+         POST_NOTIFICATIONS: exibir notificações; no Android 13+ é pedida ao
+         usuário em tempo de execução, quando ele liga os lembretes em Ajustes.
+         RECEIVE_BOOT_COMPLETED: reagendar os lembretes depois que o aparelho
+         é reiniciado (o sistema apaga os alarmes ao desligar).
+         Não é usada a permissão de alarme exato: os lembretes são agendados
+         como "inexatos", o que basta para um aviso às 7h. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
         android:label="plotter"
         android:name="${applicationName}"
@@ -30,6 +39,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Etapa 7: receptores do plugin flutter_local_notifications. O
+             primeiro mostra o lembrete na hora agendada; o segundo reagenda
+             os lembretes depois de reiniciar o aparelho ou atualizar o app. -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

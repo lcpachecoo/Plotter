@@ -4,6 +4,7 @@ import '../data/plotter_api.dart';
 import '../data/plotter_crud.dart';
 import '../models/talhao.dart';
 import '../routes/app_routes.dart';
+import '../state/preferencias.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_feedback.dart';
 import '../widgets/section_header.dart';
@@ -91,6 +92,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final visiveis = _filtrar(todos);
     final pendentes = todos.where((t) => t.status == TalhaoStatus.pendente).length;
     final emDia = todos.where((t) => t.status == TalhaoStatus.feito).length;
+    // Estado global (Etapa 7): o contador junta os avisos derivados dos dados
+    // com o que o usuário já leu na tela de Notificações.
+    final naoLidas = PreferenciasScope.of(context).naoLidos(crud.avisos);
 
     return Scaffold(
       appBar: AppBar(
@@ -98,12 +102,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         actions: [
           IconButton(
             icon: Badge(
-              isLabelVisible: pendentes > 0,
-              label: Text('$pendentes'),
+              isLabelVisible: naoLidas > 0,
+              label: Text('$naoLidas'),
               backgroundColor: AppTheme.pendingOrange,
               child: const Icon(Icons.notifications_outlined),
             ),
-            tooltip: 'Notificações ($pendentes pendentes)',
+            tooltip: naoLidas == 0
+                ? 'Notificações'
+                : 'Notificações ($naoLidas não lidas)',
             onPressed: () =>
                 Navigator.of(context).pushNamed(AppRoutes.notificacoes),
           ),

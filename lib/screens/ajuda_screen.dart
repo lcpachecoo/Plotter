@@ -80,6 +80,17 @@ class AjudaScreen extends StatelessWidget {
                     'calor excessivo). Ao lançar uma aplicação para hoje ou para os '
                     'próximos dias, o formulário mostra a previsão da data escolhida.',
               ),
+              SizedBox(height: 12),
+              _ItemAjuda(
+                icone: Icons.notifications_active_outlined,
+                titulo: 'Lembretes de aplicações',
+                texto:
+                    'Em Ajustes > Lembretes de aplicações, o Plotter pede permissão '
+                    'para enviar notificações e passa a avisar às 7h do dia de cada '
+                    'aplicação agendada, mesmo com o app fechado e sem internet. '
+                    'Tocar no lembrete abre o talhão. O sino mostra quantos avisos '
+                    'ainda não foram lidos.',
+              ),
               SizedBox(height: 28),
               SectionHeader(title: 'Recursos de acessibilidade'),
               SizedBox(height: 12),

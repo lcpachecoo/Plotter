@@ -4,6 +4,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'data/plotter_api.dart';
 import 'data/plotter_crud.dart';
 import 'routes/app_routes.dart';
+import 'services/notificacoes_locais.dart';
+import 'state/lembretes.dart';
+import 'state/preferencias.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -17,7 +20,26 @@ Future<void> main() async {
       api: PlotterApi(),
       popularDadosIniciais: false,
     );
-    runApp(PlotterApp(crud: crud));
+
+    // Etapa 7: estado global das preferências (gravado no aparelho) e
+    // lembretes de aplicações pelas notificações do sistema.
+    final preferencias = await Preferencias.carregar();
+    final lembretes = Lembretes(
+      canal: NotificacoesLocais(),
+      crud: crud,
+      preferencias: preferencias,
+    );
+
+    runApp(PlotterApp(
+      crud: crud,
+      preferencias: preferencias,
+      lembretes: lembretes,
+    ));
+
+    // O recurso nativo é preparado depois que a primeira tela já apareceu.
+    // Se o aparelho não oferecer notificações, os lembretes ficam
+    // "indisponíveis" e o resto do app funciona normalmente.
+    lembretes.iniciar();
 
     // A sincronização inicial não segura a abertura do app: enquanto ela
     // acontece (ou se o servidor estiver fora do ar) as telas mostram a
@@ -32,16 +54,33 @@ Future<void> main() async {
 
 class PlotterApp extends StatelessWidget {
   final PlotterCrud crud;
+  final Preferencias preferencias;
+  final Lembretes lembretes;
 
-  const PlotterApp({super.key, required this.crud});
+  const PlotterApp({
+    super.key,
+    required this.crud,
+    required this.preferencias,
+    required this.lembretes,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // O escopo fica acima do MaterialApp para que todas as rotas, inclusive
-    // as empilhadas, enxerguem os mesmos dados.
+    // Estado global: os escopos ficam acima do MaterialApp, então todas as
+    // rotas, inclusive as empilhadas, enxergam os mesmos objetos. Cada tela
+    // que lê um deles com `of` é reconstruída quando ele muda.
+    //   * PlotterCrudScope   → talhões, registros e status do servidor
+    //   * PreferenciasScope  → lembretes ligados, economia de dados e avisos lidos
+    //   * LembretesScope     → situação das notificações do sistema
     return PlotterCrudScope(
       crud: crud,
-      child: _app(),
+      child: PreferenciasScope(
+        preferencias: preferencias,
+        child: LembretesScope(
+          lembretes: lembretes,
+          child: _app(),
+        ),
+      ),
     );
   }
 

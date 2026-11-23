@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../models/aviso.dart';
 import '../models/previsao_tempo.dart';
 import '../models/registro.dart';
 import '../models/talhao.dart';
@@ -176,6 +177,17 @@ class PlotterCrud extends ChangeNotifier {
   static String _resumo(Registro? registro, String vazio) => registro == null
       ? vazio
       : '${registro.insumo} - ${registro.dataFormatada}';
+
+  /// Avisos da central de notificações (Etapa 7): um por talhão que não está
+  /// em dia. Usados pela tela de Notificações e pelo contador do sino.
+  List<Aviso> get avisos => [
+        for (final talhao in _talhoes)
+          if (talhao.status != TalhaoStatus.feito)
+            Aviso(
+              talhao: talhao,
+              proximaAplicacao: proximaAplicacao(talhao.id!),
+            ),
+      ];
 
   // ---------------------------------------------------------------------
   // Talhões: criação, atualização e remoção

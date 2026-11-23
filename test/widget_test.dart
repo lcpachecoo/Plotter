@@ -7,12 +7,27 @@ import 'package:plotter/main.dart';
 import 'package:plotter/screens/cadastro_talhao_screen.dart';
 import 'package:plotter/screens/notificacoes_screen.dart';
 import 'package:plotter/screens/talhao_detail_screen.dart';
+import 'package:plotter/state/lembretes.dart';
+import 'package:plotter/state/preferencias.dart';
 import 'package:plotter/widgets/registro_tile.dart';
 import 'package:plotter/widgets/talhao_card.dart';
+
+import 'canal_notificacoes_falso.dart';
 
 /// Banco usado em cada teste: SQLite em memória, recriado do zero (com a
 /// carga inicial) antes de cada caso para que um teste não afete o outro.
 late PlotterCrud _crud;
+
+/// Estado global da Etapa 7, também recriado a cada teste.
+late Preferencias _preferencias;
+late CanalNotificacoesFalso _canal;
+late Lembretes _lembretes;
+
+PlotterApp _app() => PlotterApp(
+      crud: _crud,
+      preferencias: _preferencias,
+      lembretes: _lembretes,
+    );
 
 /// Ajusta a janela de teste para o tamanho de um celular, garantindo que o
 /// mecanismo de navegação avaliado seja a barra inferior (em telas largas a
@@ -26,7 +41,7 @@ void _usarTelaDeCelular(WidgetTester tester) {
 
 /// Percorre o fluxo de entrada até o Dashboard.
 Future<void> _entrar(WidgetTester tester) async {
-  await tester.pumpWidget(PlotterApp(crud: _crud));
+  await tester.pumpWidget(_app());
   await tester.tap(find.text('Entrar'));
   await tester.pumpAndSettle();
 }
@@ -39,13 +54,20 @@ void main() {
       factory: databaseFactoryFfiNoIsolate,
       caminho: inMemoryDatabasePath,
     );
+    _preferencias = Preferencias.emMemoria();
+    _canal = CanalNotificacoesFalso();
+    _lembretes = Lembretes(
+      canal: _canal,
+      crud: _crud,
+      preferencias: _preferencias,
+    );
   });
 
   tearDown(() => _crud.fechar());
 
   testWidgets('Tela de login é exibida ao abrir o app', (tester) async {
     _usarTelaDeCelular(tester);
-    await tester.pumpWidget(PlotterApp(crud: _crud));
+    await tester.pumpWidget(_app());
 
     expect(find.text('Plotter'), findsOneWidget);
     expect(find.text('Entrar'), findsOneWidget);
@@ -206,7 +228,7 @@ void main() {
   group('Acessibilidade', () {
     testWidgets('Tela de login atende às diretrizes do Material', (tester) async {
       _usarTelaDeCelular(tester);
-      await tester.pumpWidget(PlotterApp(crud: _crud));
+      await tester.pumpWidget(_app());
 
       // Tamanho mínimo dos alvos de toque, rótulos em elementos tocáveis e
       // contraste mínimo entre texto e fundo.
@@ -223,6 +245,148 @@ void main() {
 
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    });
+  });
+
+  group('Estado global e lembretes (Etapa 7)', () {
+    Future<void> abrirAjustes(WidgetTester tester) async {
+      await tester.tap(find.text('Ajustes'));
+      await tester.pumpAndSettle();
+      await tester.dragUntilVisible(
+        find.text('Lembretes de aplicações'),
+        find.byType(ListView),
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('ler as notificações zera o sino do Dashboard e continua valendo',
+        (tester) async {
+      _usarTelaDeCelular(tester);
+      await _entrar(tester);
+
+      final total = _crud.avisos.length;
+      expect(total, greaterThan(0));
+      expect(find.byTooltip('Notificações ($total não lidas)'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.notifications_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Marcar todas como lidas'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Voltar'));
+      await tester.pumpAndSettle();
+
+      // A tela de Notificações foi fechada, mas o estado é global: o
+      // Dashboard já mostra o sino sem contador.
+      expect(find.byTooltip('Notificações'), findsOneWidget);
+      expect(_preferencias.naoLidos(_crud.avisos), 0);
+
+      await tester.tap(find.byIcon(Icons.notifications_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Nenhuma notificação não lida'), findsOneWidget);
+    });
+
+    testWidgets('ligar os lembretes em Ajustes pede permissão e agenda',
+        (tester) async {
+      _usarTelaDeCelular(tester);
+      await _lembretes.iniciar();
+      await _entrar(tester);
+      await abrirAjustes(tester);
+
+      expect(find.text('Aviso no aparelho às 7h do dia de cada aplicação agendada'),
+          findsOneWidget);
+
+      await tester.tap(find.text('Lembretes de aplicações'));
+      await tester.pumpAndSettle();
+
+      expect(_canal.pedidosDePermissao, 1);
+      expect(_canal.agendados, hasLength(_crud.agendadas.length));
+      expect(_preferencias.lembretesAtivos, isTrue);
+      expect(find.text('Ativos · 4 lembretes agendados para as 7h'), findsOneWidget);
+      expect(find.textContaining('Lembretes ativados'), findsOneWidget);
+    });
+
+    testWidgets('permissão negada mantém desligado e oferece as configurações',
+        (tester) async {
+      _usarTelaDeCelular(tester);
+      _canal.concedeAoPedir = false;
+      await _lembretes.iniciar();
+      await _entrar(tester);
+      await abrirAjustes(tester);
+
+      await tester.tap(find.text('Lembretes de aplicações'));
+      await tester.pumpAndSettle();
+
+      expect(_canal.agendados, isEmpty);
+      expect(_preferencias.lembretesAtivos, isFalse);
+      final interruptor = tester.widget<SwitchListTile>(find.ancestor(
+        of: find.text('Lembretes de aplicações'),
+        matching: find.byType(SwitchListTile),
+      ));
+      expect(interruptor.value, isFalse);
+      expect(find.textContaining('Sem permissão'), findsOneWidget);
+
+      await tester.tap(find.text('Configurações'));
+      await tester.pumpAndSettle();
+      expect(_canal.aberturasDasConfiguracoes, 1);
+    });
+
+    testWidgets('notificações bloqueadas no aparelho: aviso nas Notificações',
+        (tester) async {
+      _usarTelaDeCelular(tester);
+      await _preferencias.definirLembretes(true); // escolhido antes...
+      _canal.permissao = false; // ...e bloqueado depois, no sistema
+      await _lembretes.iniciar();
+      await _entrar(tester);
+
+      await tester.tap(find.byIcon(Icons.notifications_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('estão bloqueadas no aparelho'), findsOneWidget);
+      await tester.tap(find.text('Abrir configurações'));
+      await tester.pumpAndSettle();
+      expect(_canal.aberturasDasConfiguracoes, 1);
+    });
+
+    testWidgets('tocar em um lembrete abre o detalhe do talhão', (tester) async {
+      _usarTelaDeCelular(tester);
+      await _lembretes.iniciar();
+      await _entrar(tester);
+
+      _canal.tocar(_crud.agendadas.first.talhaoId);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TalhaoDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('app aberto por um lembrete mostra o talhão logo após o login',
+        (tester) async {
+      _usarTelaDeCelular(tester);
+      _canal.talhaoInicial = _crud.talhoes.first.id;
+      await _lembretes.iniciar();
+
+      await tester.pumpWidget(_app());
+      expect(find.byType(TalhaoDetailScreen), findsNothing);
+
+      await tester.tap(find.text('Entrar'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TalhaoDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('aparelho sem notificações: interruptor desabilitado', (tester) async {
+      _usarTelaDeCelular(tester);
+      _canal.disponivel = false;
+      await _lembretes.iniciar();
+      await _entrar(tester);
+      await abrirAjustes(tester);
+
+      expect(find.text('Indisponível neste aparelho'), findsOneWidget);
+      final interruptor = tester.widget<SwitchListTile>(find.ancestor(
+        of: find.text('Lembretes de aplicações'),
+        matching: find.byType(SwitchListTile),
+      ));
+      expect(interruptor.onChanged, isNull);
     });
   });
 }

@@ -6,10 +6,14 @@ plugins {
 
 android {
     namespace = "com.plotter.plotter"
-    compileSdk = flutter.compileSdkVersion
+    // Etapa 7: o flutter_local_notifications 23 exige compilar com o SDK 37.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // Etapa 7: exigido pelo flutter_local_notifications para usar as APIs
+        // de data/hora do Java 8+ também em Androids antigos.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -46,4 +50,8 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

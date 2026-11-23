@@ -16,9 +16,9 @@ Substitui o controle manual em papel/cadernos pelo registro digital das aplicaç
 
 Produtores agrícolas, gerentes de fazenda e operadores de campo responsáveis pelo manejo diário de lavouras.
 
-## Funcionalidades Implementadas (Etapas 2 a 6)
+## Funcionalidades Implementadas (Etapas 2 a 7)
 
-Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou o fluxo de navegação completo, ergonomia das ações e acessibilidade; na Etapa 4 os dados passaram a ser gravados em um banco SQLite no próprio aparelho; na Etapa 5 o app passou a usar um backend próprio (API REST + PostgreSQL); na Etapa 6 ganhou a previsão do tempo, vinda do serviço externo OpenWeatherMap:
+Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou o fluxo de navegação completo, ergonomia das ações e acessibilidade; na Etapa 4 os dados passaram a ser gravados em um banco SQLite no próprio aparelho; na Etapa 5 o app passou a usar um backend próprio (API REST + PostgreSQL); na Etapa 6 ganhou a previsão do tempo, vinda do serviço externo OpenWeatherMap; na Etapa 7 ganhou estado global de preferências e lembretes pelas notificações do sistema:
 
 - Login de acesso, com validação por campo, estado de carregamento e mostrar/ocultar senha
 - Dashboard com painel de status (em dia / pendente), filtro por situação e lista de talhões
@@ -28,10 +28,21 @@ Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou
 - Lançamento, edição e exclusão de registros de aplicação (formulário com data validada; data futura = aplicação agendada)
 - Histórico de aplicações em duas abas: realizadas e agendadas
 - Relatórios/indicadores consolidados da fazenda
-- Notificações de aplicações pendentes e agendadas
+- Notificações de aplicações pendentes e agendadas, com contador de não lidas no sino
+- Lembretes no aparelho às 7h do dia de cada aplicação agendada, mesmo com o app fechado
 - Ajuda e acessibilidade: mapa de navegação dentro do próprio aplicativo
-- Configurações, preferências e status real da conexão com o servidor, com sincronização manual
+- Configurações, preferências gravadas no aparelho e status real da conexão com o servidor, com sincronização manual
 - Navegação adaptável: barra inferior no celular, menu lateral em tablets e menu lateral estendido em telas largas
+
+### Estado global e lembretes de aplicações (Etapa 7)
+
+- **Estado global** com o mecanismo do próprio Flutter (`ChangeNotifier` + `InheritedNotifier`), no mesmo padrão do `PlotterCrud`: `Preferencias` (`lib/state/preferencias.dart`) e `Lembretes` (`lib/state/lembretes.dart`) ficam acima do `MaterialApp` e são vistos por todas as telas
+- **Avisos lidos** deixaram de ser variáveis da tela de Notificações: o sino do Dashboard e o do menu lateral mostram só os **não lidos**, atualizados na hora, e a leitura continua valendo depois de fechar o app. Se a situação do talhão muda, o aviso volta a aparecer como não lido
+- **Preferências de Ajustes** (lembretes, economia de dados) são compartilhadas e gravadas no aparelho com `shared_preferences`
+- **Recurso nativo: notificações locais** (`flutter_local_notifications`). Cada aplicação agendada gera um aviso do sistema às 7h do dia, que funciona sem internet e com o app fechado. Os lembretes são refeitos sozinhos a cada cadastro, edição, exclusão ou sincronização, e tocar no aviso abre o talhão
+- **Permissões:** `POST_NOTIFICATIONS` (pedida só quando o usuário liga os lembretes, no Android 13+) e `RECEIVE_BOOT_COMPLETED` (reagendar após reiniciar). Sem alarme exato
+- **Falhas tratadas:** permissão negada (mensagem com atalho para as configurações), permissão retirada depois (aviso e retorno automático ao liberar), falha ao agendar ("Tentar de novo") e aparelho sem suporte (recurso indisponível, resto do app normal)
+- Estados globais, justificativa, permissões, fluxo, falhas e roteiro de teste em [`Docs/etapa-07.md`](Docs/etapa-07.md)
 
 ### Previsão do tempo — serviço externo (Etapa 6)
 
@@ -78,15 +89,16 @@ Na Etapa 2 foi construída a camada visual da aplicação; na Etapa 3 ela ganhou
 - A API de desenvolvimento usa HTTP sem TLS; em produção deve ser servida por HTTPS.
 - Se dois aparelhos editarem o mesmo item, prevalece a última gravação (sem detecção de conflito).
 - A previsão do tempo usa uma única localização para a fazenda inteira, cobre só os próximos 5 dias e não fica disponível sem conexão.
-- As preferências de Ajustes e o estado "lida" das notificações ainda não são persistidos.
+- Os lembretes têm horário fixo (7h), entrega aproximada e valem só para aplicações agendadas (talhões pendentes sem data não geram aviso do sistema).
+- A preferência "Economia de dados" é gravada, mas ainda não altera a sincronização.
+- O estado "lido" das notificações é do aparelho, não da conta. A configuração do iOS segue a documentação do plugin, mas só o Android foi compilado e testado.
 - A situação do talhão (em dia / pendente / agendado) é escolhida manualmente, não calculada a partir dos registros.
-- As notificações não são disparadas pelo sistema operacional; a tela de notificações apresenta os avisos derivados dos dados fictícios.
 
 ## Funcionalidades Principais (planejadas)
 
 - Gerenciamento de talhões/pivôs
 - Histórico de aplicações de insumos
-- Notificações push proativas de aplicações agendadas
+- Notificações push enviadas pelo servidor (os lembretes locais de aplicações agendadas já existem desde a Etapa 7)
 - Painel de status (feito vs. pendente) por talhão
 - Sincronização offline, para uso em campo sem internet
 
@@ -120,7 +132,7 @@ Login
 
 As quatro seções principais ficam sempre acessíveis pela barra inferior (celular) ou pelo menu lateral (tablet e telas largas); as demais telas são empilhadas sobre elas e fechadas pela seta "Voltar" ou pelo botão voltar do aparelho.
 
-Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md`](Docs/etapa-02.md), [`Docs/etapa-03.md`](Docs/etapa-03.md), [`Docs/etapa-04.md`](Docs/etapa-04.md), [`Docs/etapa-05.md`](Docs/etapa-05.md) e [`Docs/etapa-06.md`](Docs/etapa-06.md).
+Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md`](Docs/etapa-02.md), [`Docs/etapa-03.md`](Docs/etapa-03.md), [`Docs/etapa-04.md`](Docs/etapa-04.md), [`Docs/etapa-05.md`](Docs/etapa-05.md), [`Docs/etapa-06.md`](Docs/etapa-06.md) e [`Docs/etapa-07.md`](Docs/etapa-07.md).
 
 ## Tecnologias
 
@@ -132,6 +144,9 @@ Detalhes completos em [`Docs/proposta.md`](Docs/proposta.md), [`Docs/etapa-02.md
 | Banco local (offline) | SQLite (`sqflite`) — Etapa 4; cópia local dos dados do servidor desde a Etapa 5 |
 | Comunicação app ↔ API | REST/JSON com o pacote `http` |
 | API externa | OpenWeatherMap (previsão do tempo) — Etapa 6, consultado pelo backend |
+| Estado global | `ChangeNotifier` + `InheritedNotifier` (Flutter) — `PlotterCrud`, `Preferencias` e `Lembretes` |
+| Preferências no aparelho | `shared_preferences` — Etapa 7 |
+| Recurso nativo | Notificações locais (`flutter_local_notifications` + `timezone`) — Etapa 7 |
 
 ## Instruções para Execução
 
@@ -164,11 +179,11 @@ Verificações automatizadas:
 
 ```bash
 flutter analyze             # análise estática
-flutter test                # navegação, acessibilidade, persistência local, integração com a API e previsão do tempo
+flutter test                # navegação, acessibilidade, persistência local, API, previsão do tempo, estado global e lembretes
 cd backend && npm test      # rotas, validação, erros e integração com o OpenWeatherMap (simulado, sem internet nem Docker)
 ```
 
-O roteiro de teste manual da navegação está em [`Docs/etapa-03.md`](Docs/etapa-03.md#8-instruções-para-execução-e-teste-da-navegação), o da persistência (incluindo fechar e reabrir o app) em [`Docs/etapa-04.md`](Docs/etapa-04.md#8-verificação-da-persistência-após-encerrar-e-reabrir-o-app), o do fluxo completo com o backend em [`Docs/etapa-05.md`](Docs/etapa-05.md#3-passo-a-passo-para-executar-o-fluxo) e o da previsão do tempo em [`Docs/etapa-06.md`](Docs/etapa-06.md#82-roteiro-de-teste-manual).
+O roteiro de teste manual da navegação está em [`Docs/etapa-03.md`](Docs/etapa-03.md#8-instruções-para-execução-e-teste-da-navegação), o da persistência (incluindo fechar e reabrir o app) em [`Docs/etapa-04.md`](Docs/etapa-04.md#8-verificação-da-persistência-após-encerrar-e-reabrir-o-app), o do fluxo completo com o backend em [`Docs/etapa-05.md`](Docs/etapa-05.md#3-passo-a-passo-para-executar-o-fluxo), o da previsão do tempo em [`Docs/etapa-06.md`](Docs/etapa-06.md#82-roteiro-de-teste-manual) e o do estado global e dos lembretes em [`Docs/etapa-07.md`](Docs/etapa-07.md#102-roteiro-de-teste-manual).
 
 ## Estrutura do Projeto
 
@@ -180,7 +195,9 @@ Plotter/
 │   ├── etapa-03.md        <-- Documentação da Etapa 3
 │   ├── etapa-04.md        <-- Documentação da Etapa 4
 │   ├── etapa-05.md        <-- Documentação da Etapa 5
-│   └── etapa-06.md        <-- Documentação da Etapa 6
+│   ├── etapa-06.md        <-- Documentação da Etapa 6
+│   ├── etapa-07.md        <-- Documentação da Etapa 7
+│   └── prints/            <-- Prints do app em funcionamento
 ├── README.md               <-- Este arquivo
 ├── backend/                 <-- API REST (Node.js + Express + TypeScript)
 │   ├── src/                  <-- Servidor, rotas, validação, PostgreSQL e integração com o OpenWeatherMap
@@ -192,13 +209,17 @@ Plotter/
 │   ├── theme/                <-- Tema visual, contraste e breakpoints responsivos
 │   ├── routes/                <-- Rotas nomeadas e mapa de navegação
 │   ├── utils/                  <-- Feedback visual, anúncios e diálogos
-│   ├── models/                  <-- Modelos de dados (Talhao, Registro, PrevisaoTempo)
+│   ├── models/                  <-- Modelos de dados (Talhao, Registro, PrevisaoTempo, Aviso)
 │   ├── data/                     <-- Cliente da API, banco SQLite e operações de CRUD
+│   ├── state/                     <-- Estado global: Preferencias e Lembretes (Etapa 7)
+│   ├── services/                   <-- Recurso nativo: notificações locais (Etapa 7)
 │   ├── widgets/                   <-- Componentes visuais reaproveitáveis
 │   └── screens/                    <-- As telas da aplicação
-└── test/                    <-- Testes automatizados (widgets, persistência, integração com a API e previsão do tempo)
+└── test/                    <-- Testes automatizados (widgets, persistência, API, previsão do tempo, estado global e lembretes)
 ```
 
 ## Documentação
 
-Consulte a proposta técnica/comercial completa em [`Docs/proposta.md`](Docs/proposta.md), a documentação da Etapa 2 em [`Docs/etapa-02.md`](Docs/etapa-02.md), a da Etapa 3 (navegação, UX e acessibilidade) em [`Docs/etapa-03.md`](Docs/etapa-03.md) a da Etapa 4 (persistência local) em [`Docs/etapa-04.md`](Docs/etapa-04.md), a da Etapa 5 (backend e fluxo completo) em [`Docs/etapa-05.md`](Docs/etapa-05.md) e a da Etapa 6 (integração com o serviço externo de previsão do tempo) em [`Docs/etapa-06.md`](Docs/etapa-06.md).
+Consulte a proposta técnica/comercial completa em [`Docs/proposta.md`](Docs/proposta.md), a documentação da Etapa 2 em [`Docs/etapa-02.md`](Docs/etapa-02.md), a da Etapa 3 (navegação, UX e acessibilidade) em [`Docs/etapa-03.md`](Docs/etapa-03.md) a da Etapa 4 (persistência local) em [`Docs/etapa-04.md`](Docs/etapa-04.md), a da Etapa 5 (backend e fluxo completo) em [`Docs/etapa-05.md`](Docs/etapa-05.md) a da Etapa 6 (integração com o serviço externo de previsão do tempo) em [`Docs/etapa-06.md`](Docs/etapa-06.md) e a da Etapa 7 (estado global e lembretes pelas notificações do aparelho) em [`Docs/etapa-07.md`](Docs/etapa-07.md).
+
+Prints do app em funcionamento (fluxo principal, lembretes e tratamento de falhas), capturados em um celular Android real, estão em [`Docs/prints/`](Docs/prints/README.md).
